@@ -296,11 +296,20 @@ made settings, nonexistant files, or non-compiling plug-in modules.  For better
 or worse, the program currently gives details on exactly what went wrong, so that
 the owner who is testing it has an easy time fixing it.
 
-* The modules are designed to be compatible with mod_perl, but I haven't tested this possibility yet; I will soon.  I say this because I avoid using global variables and I pass all subroutine parameters, and I don't use "main" at all.  All file-scoped variables are initialized at compile time (of that file), but some keys in my hashes may not be (they're optional), so hopefully that doesn't cause problems with the "initialize everything" rule.
+* The modules are designed to be compatible with mod_perl, but I haven't tested
+this possibility yet; I will soon.  I say this because I avoid using global
+variables and I pass all subroutine parameters, and I don't use "main" at all. 
+All file-scoped variables are initialized at compile time (of that file), but
+some keys in my hashes may not be (they're optional), so hopefully that doesn't
+cause problems with the "initialize everything" rule.
 
 SUPPORT
 
-Currently I don't have any support arranged with other people, lists, newsgroups, or otherwise.  Feel free to ask me if you can't figure things out on your own.  However, I am very busy so please ask only if you have a genuine interest in the modules and are considering using them.  This policy should change later as I gain more free time.
+Currently I don't have any support arranged with other people, lists, newsgroups,
+or otherwise.  Feel free to ask me if you can't figure things out on your own. 
+However, I am very busy so please ask only if you have a genuine interest in the
+modules and are considering using them.  This policy should change later as I
+gain more free time.
 
 AUTHOR
 
