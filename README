@@ -44,10 +44,6 @@ These third-party modules are required by some of mine.  If they aren't included
 in your Perl distribution then you will need to obtain them from CPAN.  The
 versions below were the newest as of April of 2000.
 
-Class::Singleton 1.03
-	- by Andy Wardley <abw@cre.canon.co.uk>
-	- in Class-Singleton-1.03.tar.gz
-
 HTTP::Headers 1.37
 	- by Gisle Aas <gisle@aas.no>
 	- in libwww-perl-5.48.tar.gz
@@ -73,83 +69,96 @@ path by your main program using something like this:
 
 Any existing POD is embedded in the modules themselves, so you will have to look
 there to see it, or run a POD extractor on it yourself, or look at the copies on
-CPAN that would be dutifully extracted and turned to HTML.
+CPAN that are dutifully extracted and turned to HTML.
 
 MODULE LIST
 
 Here is a quick list of all the modules in the distribution, and what each is
 for.  The fully documented ones appear first.
 
-Class::ParamParser 1.0b -- Perl module that provides complex parameter list
+Class::ParamParser 1.0 -- Perl module that provides complex parameter list
 parsing for subclass methods.
 
-HTML::TagMaker 1.0b -- HTML::TagMaker -- Perl module that can create any HTML
+HTML::TagMaker 1.0 -- HTML::TagMaker -- Perl module that can create any HTML
 tags, as well as groups of or just parts of them, and complete html headers or
-footers.
+footers. 
 
-HTML::FormMaker 1.0b -- Perl module that maintains a predefined html input form
+HTML::FormMaker 1.0 -- Perl module that maintains a predefined html input form
 definition with which it can generate form html, complete with persistant and
 error-checked user input, as well as formatted reports of the user input in html
 or plain text.
 
-CGI::HashOfArrays 1.0b -- Perl module that implements a hash whose keys can have
+CGI::HashOfArrays 1.0 -- Perl module that implements a hash whose keys can have
 either single or multiple values, and which can process url-encoded data.
 
-CGI::SequentialFile 1.0b -- Perl module that interfaces to a common text file
+CGI::SequentialFile 1.0 -- Perl module that interfaces to a common text file
 format which stores records as named and url-escaped key=value pairs.
 
-CGI::EventCountFile 1.0b -- Perl module that interfaces to a tab-delimited text
+CGI::EventCountFile 1.01 -- Perl module that interfaces to a tab-delimited text
 file for storing date-bounded counts of occurances for multiple events, such as
 web page views.
 
-CGI::WPM::Content 1.0b -- Perl module that stores and assembles components of a
+CGI::WPM::Content 0.2 -- Perl module that stores and assembles components of a
 new web page, including HTTP headers, and it is returned by all subclasses of
 CGI::WPM::Base.
 
-CGI::WPM::Base 0.1b -- Perl module that defines the API for subclasses, which are
+CGI::WPM::Globals 0.2 -- Perl module that is used by all subclasses of
+CGI::WPM::Base for managing global program settings, file system and web site
+hierarchy contexts, providing environment details, gathering and managing user
+input, and providing utilities like sending e-mail.
+
+CGI::WPM::Base 0.2 -- Perl module that defines the API for subclasses, which are
 miniature applications called "web page makers", and provides them with a
 hierarchical environment that handles details for obtaining program settings,
 resolving file system or web site contexts, obtaining user input, and sending new
 web pages to the user.
 
-CGI::WPM::Globals 0.1b -- Perl module that is used by all subclasses of
-CGI::WPM::Base for managing global program settings, file system and web site
-hierarchy contexts, providing environment details, gathering and managing user
-input, and providing utilities like sending e-mail.
+CGI::WPM::Usage 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
+tracks site usage details, as well as e-mail backups of usage counts to the site
+owner.
 
-CGI::WPM::Main 0.1b -- Perl module that implements a simple "main program" which
-will agnostically run any subclass of CGI::WPM::Base, print out its return value,
-initialize program globals, track site usage details, and e-mail backups of usage
-counts to the site owner.
-
-CGI::WPM::Static 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
-displays a static HTML page.
-
-CGI::WPM::MailForm 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
-implements a private e-mail form.
-
-CGI::WPM::GuestBook 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
-implements a complete guest book.
-
-CGI::WPM::SegTextDoc 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
-displays a static text page, which can be in multiple segments.
-
-CGI::WPM::MultiPage 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
+CGI::WPM::MultiPage 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
 resolves navigation for one level in the web site page hierarchy from a parent
 node to its children, encapsulates and returns its childrens' returned web page
 components, and can make a navigation bar to child pages.
+
+CGI::WPM::Redirect 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
+issues an HTTP redirection header.
+
+CGI::WPM::Static 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
+displays a static HTML page.
+
+CGI::WPM::SegTextDoc 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
+displays a static text page, which can be in multiple segments.
+
+CGI::WPM::MailForm 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
+implements a private e-mail form.
+
+CGI::WPM::GuestBook 0.2 -- Perl module that is a subclass of CGI::WPM::Base and
+implements a complete guest book.
 
 HOW TO USE THE MODULES
 
 First of all, it is always a good idea to skim through the POD for any module in
 order to learn how to use it.  Any modules at version 1.0 or later have complete
-POD, and any modules at version 0.x have incomplete POD.
+POD, and any modules at version 0.x have incomplete POD.  The exception to this 
+is CGI::WPM::Content, which has complete POD despite being at 0.2 (for version 
+number parity with all CGI::WPM::* modules).
 
 Now, at this time I don't have an exhaustive tutorial saying how to use these
-modules, but I have included a sample "web site" in the folder called "demo". 
+modules, but I have included two sample "web sites" in the folder called "demos". 
 You should be able to install the folder anywhere on your web server, and only
-need to modify a couple files to make it operational; those files are the only
-ones at the root of the demo folder.  
+need to modify a single file in each one to make that site operational, and that 
+file is in the root of each web site folder, default.pl.
+
+The "website" folder includes a complete site with static pages, email forms, 
+guest books, and usage tracking both for page hits, incoming, and outgoing 
+visitors.  The "redirector" folder only does usage counting, and issues a 
+redirection page; it is intended for sites that have changed addresses so you 
+can figure out which other sites still have to fix their links.  In the future 
+I will put up more demos, for example, a guestbook-only site.  But you can 
+easily derive such from the "website" folder if you desire.  Of course, the 
+number of distinct guest books you can have in a single site is unlimited.
 
 The file "default.pl" is the "main program" which calls everything else.  This
 file needs to correspond to a web url on your server in order for a web browser
@@ -158,26 +167,37 @@ can be outside the public html directory.  What I do is keep all of the site
 files together, and put only a link/alias/shortcut to default.pl in my public web
 directory.
 
-Example content of default.pl:
+Following is a portion of the "default.pl" file:
 
-#!/usr/bin/perl
-use strict;
-use lib '/path/to/non/distribution/perl/modules';     # optional
-use CGI::WPM::Main;         # this code is the real main program
-CGI::WPM::Main->main(
-	'/path/to/site/support/files',   # where the pieces of this site are
-	'/',                             # path delimiter for your OS
-	'site_prefs.pl'                  # file holding your site global settings
-);
-1;
+	use lib '/users/me/www_files/lib';   # this is optional
+
+	require CGI::WPM::Content;
+	require CGI::WPM::Globals;
+	require CGI::WPM::Base;
+
+	my $webpage;
+	my $globals = CGI::WPM::Globals->new();
+
+	if( $globals->user_input_param( 'debugging' ) eq 'on' ) {
+		$globals->is_debug( 1 );
+		$globals->persistant_user_input_param( 'debugging', 1 );
+	}
+
+	$globals->site_root_dir( '/users/me/www_files/demos/website' );
+	$globals->system_path_delimiter( '/' );
+
+	$globals->user_vrp( lc( $globals->user_input_param( 
+		$globals->vrp_param_name( 'path' ) ) ) );
+	$globals->current_user_vrp_level( 1 );
+	
+	$globals->site_title( 'Sample Website By WPM' );
+	$globals->site_owner_name( 'John Sample' );
+	$globals->site_owner_email( 'john@sample.net' );
+	$globals->site_owner_email_vrp( '/mailme' );  # opt web page within the site
 
 You need to modify your copy of "default.pl" such that the information above is
-correct for your server's layout and operating system.
-
-Next, you need to modify the file called "site_prefs.pl" such that any e-mail
-addresses there are your own.  While the site will operate without this change,
-any attempts to use the mail forms or guest books will e-mail your submission to
-the wrong person, john@sample.com.
+correct for your server's layout and operating system.  Not all of the function 
+calls are required; for example, the last block usually just applies to e-mail.
 
 All else I can suggest to figure things out is examine the files in the "demo"
 folder side-by-side with exploring the generated web site in your browser, and
@@ -220,12 +240,13 @@ of parts, which can be navigated with an automatically provided navigation bar.
 total occurances, count of today's occurances, date of first occurance, and date
 of last occurance.  Usage details that can be counted include: which site pages
 were viewed, which external urls we redirect visitors to, which external urls
-have a link to us (that were used), which internal site pages had links that were
-clicked on to go to other pages, which web browsers the visitors are using, where
-the visitors are from, and miscellaneous environment details like GET vs POST vs
-HEAD requests.  The details are counted independently of each other.  Usage
-information can be compiled and e-mailed to the owner once per day for
-backup/report purposes.
+have a link to us (that were used), and miscellaneous environment details like
+GET vs POST vs HEAD requests.  The details are counted independently of each
+other.  Usage information can be compiled and e-mailed to the owner once per day
+for backup/report purposes.  Referring urls are smartly subgrouped such that
+search engines and normal web sites appear separately, and also the search
+keywords are in their own group so it is easy to see at a glance what kinds of
+searches led visitors to you.
 
 * Search and replace of content at site visitation time so that repeating and/or
 complicated data in static source files can be substituted by other static or
@@ -275,13 +296,11 @@ made settings, nonexistant files, or non-compiling plug-in modules.  For better
 or worse, the program currently gives details on exactly what went wrong, so that
 the owner who is testing it has an easy time fixing it.
 
+* The modules are designed to be compatible with mod_perl, but I haven't tested this possibility yet; I will soon.  I say this because I avoid using global variables and I pass all subroutine parameters, and I don't use "main" at all.  All file-scoped variables are initialized at compile time (of that file), but some keys in my hashes may not be (they're optional), so hopefully that doesn't cause problems with the "initialize everything" rule.
+
 SUPPORT
 
-Currently I don't have any support arranged with other people, lists, newsgroups,
-or otherwise.  You will need to ask me if you can't figure things out on your
-own.  Unfortunately, I am very busy and have little time to answer questions.  So
-please ask only if you have a genuine interest in the modules and are considering
-using them.  This policy should change later as I gain more free time.
+Currently I don't have any support arranged with other people, lists, newsgroups, or otherwise.  Feel free to ask me if you can't figure things out on your own.  However, I am very busy so please ask only if you have a genuine interest in the modules and are considering using them.  This policy should change later as I gain more free time.
 
 AUTHOR
 

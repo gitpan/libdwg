@@ -18,7 +18,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.1b';
+$VERSION = '0.2';
 
 ######################################################################
 
@@ -51,12 +51,8 @@ use CGI::WPM::Static;
 # Names of properties for objects of this class are declared here:
 my $KEY_SITE_GLOBALS = 'site_globals';  # hold global site values
 my $KEY_PAGE_CONTENT = 'page_content';  # hold return values
-my $KEY_PAGE_ROOT_DIR = 'page_root_dir';  # root dir of support files
-my $KEY_PAGE_PREFS   = 'page_prefs';    # hold our own settings
-my $KEY_IS_ERROR   = 'is_error';    # holds error string, if any
 
 # Keys for items in site global preferences:
-my $GKEY_T_VRP_ID = 't_vrp_id';  # sort of like "__persist__&path="
 
 # Keys for items in site page preferences:
 my $PKEY_TITLE = 'title';        # title of the document
@@ -74,21 +70,25 @@ my $PKEY_SEGMENTS = 'segments';  # number of pieces doc is in
 sub _dispatch_by_user {
 	my $self = shift( @_ );
 	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
+	my $rh_prefs = $globals->site_prefs();
 	
 	my $segments = $rh_prefs->{$PKEY_SEGMENTS};
 	$segments >= 1 or $rh_prefs->{$PKEY_SEGMENTS} = $segments = 1;
 
-	my $curr_seg_num = $globals->current_vrp_element();
+	my $curr_seg_num = $globals->current_user_vrp_element();
 	$curr_seg_num >= 1 or $curr_seg_num = 1;
 	$curr_seg_num <= $segments or $curr_seg_num = $segments;
-	$globals->current_vrp_element( $curr_seg_num );
+	$globals->current_user_vrp_element( $curr_seg_num );
 	
 	$self->get_curr_seg_content();
 	if( $segments > 1 ) {
 		$self->attach_document_navbar();
 	}
 	$self->attach_document_header();
+	
+	# This is provided just so usage listings sorted alphabetically 
+	# will show all the parts in the correct order.
+	$globals->current_user_vrp_element( sprintf( "%3.3d", $curr_seg_num ) );
 }
 
 ######################################################################
@@ -96,28 +96,27 @@ sub _dispatch_by_user {
 sub get_curr_seg_content {
 	my $self = shift( @_ );
 	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
+	my $rh_prefs = $globals->site_prefs();
+	my $is_multi_segmented = $rh_prefs->{$PKEY_SEGMENTS} > 1;
 
 	my ($base, $ext) = ($rh_prefs->{$PKEY_FILENAME} =~ m/^([^\.]*)(.*)$/);
-	my $seg_num_str = $rh_prefs->{$PKEY_SEGMENTS} > 1 ?
-		'_'.sprintf( "%3.3d", $globals->current_vrp_element() ) : '';
+	my $seg_num_str = $is_multi_segmented ?
+		'_'.sprintf( "%3.3d", $globals->current_user_vrp_element() ) : '';
 
 	my $wpm_prefs = {
 		filename => "$base$seg_num_str$ext",
 		is_text => 1,
 	};
 
-	my $root_dir = $self->{$KEY_PAGE_ROOT_DIR};
-	my $sys_path_delim = $globals->system_path_delimiter();
-	my $wpm_work_dir = $rh_prefs->{$PKEY_SEGMENTS} > 1 ?
-		"$root_dir$sys_path_delim$base" : $root_dir;
+	$is_multi_segmented and $globals->move_current_srp( $base );
+	$globals->move_site_prefs( $wpm_prefs );
 
-	my $wpm = CGI::WPM::Static->new( $wpm_work_dir, $wpm_prefs );
+	my $wpm = CGI::WPM::Static->new( $globals );
 	$wpm->dispatch_by_user();
-	my $webpage = $wpm->get_page_content();
-		
-	$self->{$KEY_IS_ERROR} = $wpm->is_error();
-	$self->{$KEY_PAGE_CONTENT} = $webpage;
+	$self->{$KEY_PAGE_CONTENT} = $wpm->get_page_content();
+
+	$globals->restore_site_prefs();
+	$is_multi_segmented and $globals->restore_last_srp();
 }
 
 ######################################################################
@@ -126,16 +125,12 @@ sub attach_document_navbar {
 	my $self = shift( @_ );
 	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
 
-	my $segments = $rh_prefs->{$PKEY_SEGMENTS};
-	my $curr_seg_num = $globals->current_vrp_element();
+	my $segments = $globals->site_prefs()->{$PKEY_SEGMENTS};
+	my $curr_seg_num = $globals->current_user_vrp_element();
+	my $common_url = $globals->persistant_vrp_url( '', 1 );
 
-	my $common_url = $globals->site_pref( $GKEY_T_VRP_ID ).'='.
-		$globals->higher_vrp_as_string().$globals->vrp_delimiter();
-		
 	my @seg_list_html = ();
-
 	foreach my $seg_num (1..$segments) {
 		if( $seg_num == $curr_seg_num ) {
 			push( @seg_list_html, "$seg_num\n" );
@@ -172,9 +167,9 @@ __endquote
 
 sub attach_document_header {
 	my $self = shift( @_ );
-	my $globals = $self->{$KEY_SITE_GLOBALS};
 	my $webpage = $self->{$KEY_PAGE_CONTENT};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
+	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $rh_prefs = $globals->site_prefs();
 
 	my $title = $rh_prefs->{$PKEY_TITLE};
 	my $author = $rh_prefs->{$PKEY_AUTHOR};
@@ -182,7 +177,7 @@ sub attach_document_header {
 	my $updated = $rh_prefs->{$PKEY_UPDATED};
 	my $segments = $rh_prefs->{$PKEY_SEGMENTS};
 	
-	my $curr_seg_num = $globals->current_vrp_element();
+	my $curr_seg_num = $globals->current_user_vrp_element();
 	$title .= $segments > 1 ? ": $curr_seg_num / $segments" : '';
 	
 	$webpage->title( $title );

@@ -18,7 +18,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA $AUTOLOAD);
-$VERSION = '1.0b';
+$VERSION = '1.0';
 
 ######################################################################
 

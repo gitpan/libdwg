@@ -18,7 +18,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.1b';
+$VERSION = '0.2';
 
 ######################################################################
 
@@ -54,15 +54,6 @@ use CGI::SequentialFile;
 # Names of properties for objects of this class are declared here:
 my $KEY_SITE_GLOBALS = 'site_globals';  # hold global site values
 my $KEY_PAGE_CONTENT = 'page_content';  # hold return values
-my $KEY_PAGE_PREFS   = 'page_prefs';    # hold our own settings
-my $KEY_IS_ERROR   = 'is_error';    # holds error string, if any
-
-# Keys for items in site global preferences:
-my $GKEY_SITE_TITLE = 'site_title';  # name of this website
-my $GKEY_OWNER_NAME = 'owner_name';  # name of site's owner
-my $GKEY_OWNER_EMAIL = 'owner_email';  # email addy of site's owner
-my $GKEY_RETURN_EMAIL = 'return_email';  # visitors get this inst real addy
-my $GKEY_SMTP_HOST = 'smtp_host';  # who we use to send mail
 
 # Keys for items in site page preferences:
 my $PKEY_FN_FIELD_DEF = 'fn_field_def';
@@ -70,18 +61,18 @@ my $PKEY_FN_MESSAGES  = 'fn_messages';
 
 # Names of the fields in our html form:
 my $FFN_NAMEREAL = 'namereal';  # user's real name
-my $FFN_EMAILPRV = 'emailprv';  # user's e-mail for private use
+my $FFN_EMAIL    = 'email';     # user's e-mail address
 my $FFN_WANTCOPY = 'wantcopy';  # true if sender wants a copy
-my $FFN_MESSAGE  = 'message';   # user's message body
+#my $FFN_MESSAGE  = 'message';   # user's message body
+
+# Extra fields in guest book log file
+my $LFN_SUBMIT_DATE   = 'submit_date';
+my $LFN_SUBMIT_DOMAIN = 'submit_domain';
 
 # Constant values used in this class go here:
 my $VRP_SIGN = 'sign';  # in this sub path is the book signing page
 	# if no sub path is chosen, we view guest book by default
 my $EMPTY_FIELD_ECHO_STRING = '(no answer)';
-
-# Extra fields in guest book log file
-my $LFN_SUBMIT_DATE   = 'submit_date';
-my $LFN_SUBMIT_DOMAIN = 'submit_domain';
 
 ######################################################################
 # This is provided so CGI::WPM::Base->dispatch_by_user() can call it.
@@ -92,22 +83,21 @@ sub _dispatch_by_user {
 
 	SWITCH: {
 		my $ra_field_defs = $self->get_field_definitions();
-		if( $self->{$KEY_IS_ERROR} ) {
+		if( $globals->get_error() ) {
 			$self->no_questions_error();
 			last SWITCH;
 		}
 
 		my $form = HTML::FormMaker->new();
-		$form->form_submit_url( $globals->base_url() );
+		$form->form_submit_url( $globals->self_url() );
 		$form->field_definitions( $ra_field_defs );
-		$form->empty_field_echo_string( $EMPTY_FIELD_ECHO_STRING );
 
-		unless( $globals->current_vrp_element() eq $VRP_SIGN ) {
+		unless( $globals->current_user_vrp_element() eq $VRP_SIGN ) {
 			$self->read_guest_book( $form );
 			last SWITCH;
 		}
 
-		$form->user_input( $globals->query_params() );
+		$form->user_input( $globals->user_input() );
 
 		if( $form->new_form() ) {  # if we're called first time
 			$self->new_message( $form );
@@ -125,7 +115,7 @@ sub _dispatch_by_user {
 
 		$self->mail_me_and_sign_guest_ok( $form );
 		
-		if( $globals->param( $FFN_WANTCOPY ) eq 'on' ) {
+		if( $globals->user_input_param( $FFN_WANTCOPY ) eq 'on' ) {
 			$self->send_mail_to_writer( $form );
 		}
 	}
@@ -135,27 +125,10 @@ sub _dispatch_by_user {
 
 sub get_field_definitions {
 	my $self = shift( @_ );
-	my $globals = $self->{$KEY_SITE_GLOBALS};
 	my @field_definitions = ();
 
-	push( @field_definitions, CGI::HashOfArrays->new( 1, {
-		type => 'hidden',
-		name => $globals->vrp_param_name(),
-		value => $globals->vrp_as_string(),
-	} ) );
-	
-	my $rh_persistant_query = $globals->query_params()->fetch_all(
-		[keys %{$globals->persistant_query_params()}] );
-	foreach my $key (keys %{$rh_persistant_query}) {
-		push( @field_definitions, CGI::HashOfArrays->new( 1, {
-			type => 'hidden_group',
-			name => $key,
-			values => $rh_persistant_query->{$key},
-		} ) );
-	}
-	
 	push( @field_definitions, 
-		CGI::HashOfArrays->new( 1, {
+		{
 			visible_title => "Your Name",
 			type => 'textfield',
 			name => $FFN_NAMEREAL,
@@ -163,38 +136,37 @@ sub get_field_definitions {
 			is_required => 1,
 			error_message => 'You must enter your name.',
 			exclude_in_echo => 1,
-		} ), CGI::HashOfArrays->new( 1, {
+		}, {
 			visible_title => "Your E-mail",
 			type => 'textfield',
-			name => $FFN_EMAILPRV,
+			name => $FFN_EMAIL,
 			size => 30,
 			is_required => 1,
 			validation_rule => '\S\@\S',
 			help_message => 'E-mails are in the form "user@domain".',
 			error_message => 'You must enter your e-mail.',
 			exclude_in_echo => 1,
-		} ), CGI::HashOfArrays->new( 1, {
+		}, {
 			visible_title => "Keep A Copy",
 			type => 'checkbox',
 			name => $FFN_WANTCOPY,
 			nolabel => 1,
-			help_message => "If checked, a copy of this message is e-mailed to
-you.",
+			help_message => "If checked, a copy of this message is e-mailed to you.",
 			exclude_in_echo => 1,
-		} ), 
+		}, 
 	);
 
 	push( @field_definitions, @{$self->get_question_field_defs()} );
 
 	push( @field_definitions, 
-		CGI::HashOfArrays->new( 1, {
+		{
 			type => 'submit', 
 			label => 'Post',
-		} ), CGI::HashOfArrays->new( 1, {
+		}, {
 			type => 'reset', 
 			label => 'Clear',
 			keep_with_prev => 1,
-		} ),
+		},
 	);
 
 	return( \@field_definitions );
@@ -204,12 +176,13 @@ you.",
 
 sub get_question_field_defs {
 	my $self = shift( @_ );
-	my $filename = $self->{$KEY_PAGE_PREFS}->{$PKEY_FN_FIELD_DEF};
-	my $filepath = $self->_prepend_path( $filename );
+	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $filename = $globals->site_pref( $PKEY_FN_FIELD_DEF );
+	my $filepath = $globals->phys_filename_string( $filename );
 	my $field_defin_file = CGI::SequentialFile->new( $filepath );
 	my $ra_field_list = $field_defin_file->fetch_all_records( 1 );
 	ref( $ra_field_list ) eq 'ARRAY' or $ra_field_list = [];
-	$self->{$KEY_IS_ERROR} = $field_defin_file->is_error();
+	$globals->add_error( $field_defin_file->is_error() );
 	return( $ra_field_list );
 }
 
@@ -217,8 +190,8 @@ sub get_question_field_defs {
 
 sub no_questions_error {
 	my $self = shift( @_ );
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
 
 	$webpage->title( "Error Starting GuestBook" );
 
@@ -231,7 +204,7 @@ that is required to operate.  Specifically, we don't know what
 questions we are supposed to ask you.  Here are some details about 
 what caused this problem:</P>
 
-<P>$self->{$KEY_IS_ERROR}</P>
+<P>$globals->get_error()</P>
 
 @{[$self->_get_amendment_message()]}
 __endquote
@@ -241,16 +214,17 @@ __endquote
 
 sub read_guest_book {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
+	my $sign_gb_url = $globals->persistant_vrp_url( $VRP_SIGN );
 
-	my $filename = $self->{$KEY_PAGE_PREFS}->{$PKEY_FN_MESSAGES};
-	my $filepath = $self->_prepend_path( $filename );
+	my $filename = $globals->site_pref( $PKEY_FN_MESSAGES );
+	my $filepath = $globals->phys_filename_string( $filename );
 	my $message_file = CGI::SequentialFile->new( $filepath, 1 );
 	my @message_list = $message_file->fetch_all_records( 1 );
 
 	if( my $err_msg = $message_file->is_error() ) {
-		$self->{$KEY_IS_ERROR} = $err_msg;
+		$globals->add_error( $err_msg );
 	
 		$webpage->title( "Error Reading GuestBook Postings" );
 
@@ -277,7 +251,7 @@ __endquote
 
 <P>The guest book currently has no messages in it, as either none 
 were successfully posted or they were deleted since then.  You can 
-still sign it yourself, however.</P>
+still <A HREF="$sign_gb_url">sign</A> it yourself, however.</P>
 __endquote
 
 		return( 1 );
@@ -291,7 +265,7 @@ __endquote
 		my $submit_date = $message->fetch_value( $LFN_SUBMIT_DATE );
 		push( @message_html, "<H3>From $name_real at $submit_date:</H3>" );
 		push( @message_html, 
-			$form->make_html_input_echo( 1, 1, '(no answer)' ) );
+			$form->make_html_input_echo( 1, 1, $EMPTY_FIELD_ECHO_STRING ) );
 		push( @message_html, "\n<HR>" );
 	}
 	pop( @message_html );  # get rid of trailing <HR>
@@ -303,12 +277,14 @@ __endquote
 	$webpage->body_prepend( <<__endquote );
 <H2 ALIGN="center">@{[$webpage->title()]}</H2>
 
-<P>Messages are ordered from newest to oldest.  You may also sign 
+<P>Messages are ordered from newest to oldest.  You may also 
+<A HREF="$sign_gb_url">sign</A> 
 this guest book yourself, if you wish.</P>
 __endquote
 
 	$webpage->body_append( <<__endquote );
-<P>You may also sign this guest book yourself, if you wish.</P>
+<P>You may also <A HREF="$sign_gb_url">sign</A> 
+this guest book yourself, if you wish.</P>
 __endquote
 
 	return( 1 );
@@ -318,7 +294,7 @@ __endquote
 
 sub new_message {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
 
 	$webpage->title( "Sign the Guest Book" );
 
@@ -342,7 +318,7 @@ __endquote
 
 sub invalid_input {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
 
 	$webpage->title( "Information Missing" );
 
@@ -368,21 +344,28 @@ __endquote
 
 sub send_mail_to_me {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
 
 	my $err_msg = $globals->send_email_message(
-		$globals->site_pref( $GKEY_SMTP_HOST ),
-		$globals->site_pref( $GKEY_OWNER_NAME ),
-		$globals->site_pref( $GKEY_OWNER_EMAIL ),
-		$globals->param( $FFN_NAMEREAL ),
-		$globals->param( $FFN_EMAILPRV ),
-		$globals->site_pref( $GKEY_SITE_TITLE ).' -- GuestBook Message',
-		$self->make_mail_message_body( $form, 0 )
+		$globals->site_owner_name(),
+		$globals->site_owner_email(),
+		$globals->user_input_param( $FFN_NAMEREAL ),
+		$globals->user_input_param( $FFN_EMAIL ),
+		$globals->site_title().' -- GuestBook Message',
+		$form->make_text_input_echo( 0, $EMPTY_FIELD_ECHO_STRING ),
+		<<__endquote.
+It is the result of a form submission from a site visitor, 
+"@{[$globals->user_input_param( $FFN_NAMEREAL )]}" <@{[$globals->user_input_param( $FFN_EMAIL )]}>.
+From: @{[$globals->remote_addr()]} @{[$globals->remote_host()]}.
+__endquote
+		($globals->user_input_param( $FFN_WANTCOPY ) ? 
+		"The visitor also requested a copy be sent to them.\n" : 
+		"The visitor did not request a copy be sent to them.\n"),
 	);
 
 	if( $err_msg ) {
-		$self->{$KEY_IS_ERROR} = $err_msg;
+		$globals->add_error( $err_msg );
 	
 		$webpage->title( "Error Sending Mail" );
 
@@ -419,21 +402,21 @@ __endquote
 
 sub sign_guest_book {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
 
-	my $new_posting = $globals->query_params()->clone();
+	my $new_posting = $globals->user_input()->clone();
 	$new_posting->store( $LFN_SUBMIT_DATE, $globals->today_date_utc() );
 	$new_posting->store( $LFN_SUBMIT_DOMAIN, 
 		$globals->remote_addr().':'.$globals->remote_host() );
 
-	my $filename = $self->{$KEY_PAGE_PREFS}->{$PKEY_FN_MESSAGES};
-	my $filepath = $self->_prepend_path( $filename );
+	my $filename = $globals->site_pref( $PKEY_FN_MESSAGES );
+	my $filepath = $globals->phys_filename_string( $filename );
 	my $message_file = CGI::SequentialFile->new( $filepath, 1 );
 	$message_file->append_new_records( $new_posting );
 
 	if( my $err_msg = $message_file->is_error() ) {
-		$self->{$KEY_IS_ERROR} = $err_msg;
+		$globals->add_error( $err_msg );
 	
 		$webpage->title( "Error Writing to Guest Book" );
 
@@ -466,8 +449,8 @@ __endquote
 
 sub mail_me_and_sign_guest_ok {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
 
 	$webpage->title( "Your Message Has Been Added" );
 
@@ -478,17 +461,15 @@ sub mail_me_and_sign_guest_ok {
 e-mailed to me as well.  This is what the copy e-mailed to me said:</P>
 
 <P><STRONG>To:</STRONG> 
-@{[$globals->site_pref( $GKEY_OWNER_NAME )]}
+@{[$globals->site_owner_name()]}
 <BR><STRONG>From:</STRONG> 
-@{[$globals->param( $FFN_NAMEREAL )]} 
-&lt;@{[$globals->param( $FFN_EMAILPRV )]}>
+@{[$globals->user_input_param( $FFN_NAMEREAL )]} 
+&lt;@{[$globals->user_input_param( $FFN_EMAIL )]}&gt;
 <BR><STRONG>Subject:</STRONG> 
-@{[$globals->site_pref( $GKEY_SITE_TITLE )]}
--- Private Mail Me</P>
+@{[$globals->site_title()]}
+-- GuestBook Message</P>
 
-@{[$form->make_html_input_echo( 1, 0, '(no answer)' )]}
-
-<P>The guest book is not storing your e-mail address.</P>
+@{[$form->make_html_input_echo( 1, 1, $EMPTY_FIELD_ECHO_STRING )]}
 __endquote
 }
 
@@ -496,21 +477,25 @@ __endquote
 
 sub send_mail_to_writer {
 	my ($self, $form) = @_;
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
 	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = $self->{$KEY_PAGE_CONTENT};
 
 	my $err_msg = $globals->send_email_message(
-		$globals->site_pref( $GKEY_SMTP_HOST ),
-		$globals->param( $FFN_NAMEREAL ),
-		$globals->param( $FFN_EMAILPRV ),
-		$globals->site_pref( $GKEY_OWNER_NAME ),
-		$globals->site_pref( $GKEY_RETURN_EMAIL ),
-		$globals->site_pref( $GKEY_SITE_TITLE ).' -- GuestBook Message',
-		$self->make_mail_message_body( $form, 1 )
+		$globals->user_input_param( $FFN_NAMEREAL ),
+		$globals->user_input_param( $FFN_EMAIL ),
+		$globals->site_owner_name(),
+		$globals->site_owner_email(),
+		$globals->site_title().' -- GuestBook Message',
+		$form->make_text_input_echo( 0, $EMPTY_FIELD_ECHO_STRING ),
+		<<__endquote,
+It is the result of a form submission from a site visitor, 
+"@{[$globals->user_input_param( $FFN_NAMEREAL )]}" <@{[$globals->user_input_param( $FFN_EMAIL )]}>.
+From: @{[$globals->remote_addr()]} @{[$globals->remote_host()]}.
+__endquote
 	);
 
 	if( $err_msg ) {
-		$self->{$KEY_IS_ERROR} = $err_msg;
+		$globals->add_error( $err_msg );
 		$webpage->body_append( <<__endquote );
 <P>However, something went wrong when trying to send you a copy:
 $err_msg.</P>
@@ -519,71 +504,9 @@ __endquote
 	} else {
 		$webpage->body_append( <<__endquote );
 <P>Also, a copy was successfully sent to you at 
-'@{[$globals->param( $FFN_EMAILPRV )]}'.</P>
+'@{[$globals->user_input_param( $FFN_EMAIL )]}'.</P>
 __endquote
 	}
-}
-
-######################################################################
-
-sub make_mail_message_body {
-	my ($self, $form, $is_visitor_copy) = @_;
-	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $message_body;
-	
-	if( $is_visitor_copy ) {
-		$message_body = <<__endquote;
---------------------------------------------------
-This is a copy of an e-mail message that was sent to me 
-at @{[$globals->today_date_utc()]} UTC by 
-@{[$globals->param( $FFN_NAMEREAL )]} (@{[$globals->param( $FFN_EMAILPRV )]})
-using a form on my web page, located at 
-"@{[$globals->base_url()]}".  
-From: @{[$globals->remote_addr()]} @{[$globals->remote_host()]}
---------------------------------------------------
-
-@{[$form->make_text_input_echo( 0, '(no answer)' )]}
-
---------------------------------------------------
-END OF MESSAGE
-__endquote
-
-	} elsif( $globals->param( $FFN_WANTCOPY ) ) {
-		$message_body = <<__endquote;
---------------------------------------------------
-This message was sent at @{[$globals->today_date_utc()]} UTC by
-@{[$globals->param( $FFN_NAMEREAL )]} (@{[$globals->param( $FFN_EMAILPRV )]})
-using a form on my web page, located at 
-"@{[$globals->base_url()]}".  
-From: @{[$globals->remote_addr()]} @{[$globals->remote_host()]}
-The visitor also requested a copy be sent to them.
---------------------------------------------------
-
-@{[$form->make_text_input_echo( 0, '(no answer)' )]}
-
---------------------------------------------------
-END OF MESSAGE
-__endquote
-
-	} else {
-		$message_body = <<__endquote;
---------------------------------------------------
-This message was sent at @{[$globals->today_date_utc()]} UTC by
-@{[$globals->param( $FFN_NAMEREAL )]} (@{[$globals->param( $FFN_EMAILPRV )]})
-using a form on my web page, located at 
-"@{[$globals->base_url()]}".  
-From: @{[$globals->remote_addr()]} @{[$globals->remote_host()]}
-The visitor did not request a copy be sent to them.
---------------------------------------------------
-
-@{[$form->make_text_input_echo( 0, '(no answer)' )]}
-
---------------------------------------------------
-END OF MESSAGE
-__endquote
-	}
-	
-	return( $message_body );
 }
 
 ######################################################################

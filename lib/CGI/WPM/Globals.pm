@@ -20,7 +20,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.1b';
+$VERSION = '0.2';
 
 ######################################################################
 
@@ -36,297 +36,231 @@ $VERSION = '0.1b';
 
 =head2 Nonstandard Modules
 
-	Class::Singleton 1.03
 	CGI::HashOfArrays
-	Net::SMTP 2.15
+	Net::SMTP 2.15  # only if we send e-mails
 
 =cut
 
 ######################################################################
 
-use Class::Singleton 1.03;
-@ISA = qw( Class::Singleton );
 use CGI::HashOfArrays;
 
 ######################################################################
 # Names of properties for objects of this class are declared here:
-my $KEY_INITIAL_QUERY = 'initial_query';  # this string never changes
+
+# These properties are set only once because they correspond to user 
+# input that can only be gathered prior to this program starting up.
+my $KEY_INITIAL_UI = 'initial_user_input';
+	my $IKEY_COOKIE   = 'user_cookie_str'; # cookies from browser
+	my $IKEY_QUERY    = 'user_query_str';  # query str from browser
+	my $IKEY_POST     = 'user_post_str';   # post data from browser
+	my $IKEY_OFFLINE  = 'user_offline_str'; # shell args / redirect
+	my $IKEY_OVERSIZE = 'is_oversize_post'; # true if cont len >max
+
+# This property is set by the calling code and may affect how certain 
+# areas of the program function, but it can be safely ignored.
+my $KEY_IS_DEBUG = 'is_debug';  # are we debugging the site or not?
+
+# This property is set when a server-side problem causes the program 
+# to not function correctly.  This includes inability to load modules, 
+# inability to get preferences, inability to use e-mail or databases.
+my $KEY_SITE_ERRORS = 'site_errors'; # holds error string list, if any
+
+# These properties are set by the code which instantiates this object,
+# are operating system specific, and indicate where all the support 
+# files are for a site.
 my $KEY_SITE_ROOT_DIR = 'site_root_dir';  # root dir of support files
 my $KEY_DELIM_SYS_PATH = 'delim_sys_path';  # level delim in system paths
-my $KEY_SITE_PREFS = 'site_prefs';  # global settings we want go here
-my $KEY_QUERY_PARAMS  = 'query_params';  # calling code can set/change
-my $KEY_PERSIST_PARAMS = 'persist_params';  # param names we want persistant
-my $KEY_IS_DEBUG = 'is_debug';  # are we debugging the site or not?
-my $KEY_VRP_ELEMENTS = 'vrp_elements';  # virtual resource path param
-my $KEY_CURR_VRP_LEV = 'curr_vrp_lev';  # level page makers working at
-my $KEY_VRP_PARAM = 'vrp_param';  # query param our vrp is at
-my $KEY_VRP_DELIM = 'vrp_delim';  # delimiter between vrp elements
+
+# These properties maintain recursive copies of themselves such that 
+# subordinate page making modules can inherit (or override) properties 
+# of their parents, but any changes made won't affect the properties 
+# that the parents see (unless the parents allow it).
+my $KEY_PREFS   = 'site_prefs';  # settings from files in the srp
+my $KEY_SRP = 'srp_elements';  # site resource path (files)
+my $KEY_VRP = 'vrp_elements';  # virtual resource path (url)
+	# the above vrp is used soley when constructing new urls
+my $KEY_PREFS_STACK = 'prefs_stack';
+my $KEY_SRP_STACK   = 'srp_stack';
+my $KEY_VRP_STACK   = 'vrp_stack';
+
+# These properties are not recursive, but are unlikely to get edited
+my $KEY_USER_COOKIE = 'user_cookie'; # settings from browser cookies
+my $KEY_USER_INPUT  = 'user_input';  # settings from browser query/post
+my $KEY_USER_VRP_EL = 'user_vrp_el'; # vrp that user is requesting
+my $KEY_USER_VRP_LV = 'user_vrp_lv'; # level page makers working at
+
+# These properties keep track of important user/pref data that should
+# be returned to the browser even if not recognized by subordinates.
+my $KEY_PERSIST_QUERY  = 'persist_query';  # which qp persist for session
+	# this is used only when constructing new urls, and it stores just 
+	# the names of user input params whose values we are to return.
+
+# These properties are used under the assumption that the vrp which 
+# the user provides us is in the query string.
+my $KEY_VRP_UIPN = 'uipn_vrp';  # query param that has vrp as its value
+
+# These properties are used in conjunction with sending e-mails.
+my $KEY_SMTP_HOST    = 'smtp_host';    # what computer sends our mail
+my $KEY_SMTP_TIMEOUT = 'smtp_timeout'; # how long wait for mail send
+my $KEY_SITE_TITLE   = 'site_title';   # name of site
+my $KEY_OWNER_NAME   = 'owner_name';   # name of site's owner
+my $KEY_OWNER_EMAIL  = 'owner_email';  # e-mail of site's owner
+my $KEY_OWNER_EM_VRP = 'owner_em_vrp'; # vrp for e-mail page
 
 # Constant values used in this class go here:
-my $PARAM_KEYWORDS = '.keywords';
+
 my $MAX_CONTENT_LENGTH = 100_000;  # currently limited to 100 kbytes
-my $EMAIL_HEADER_STRIP_PATTERN = '[,<>"\'\n]';
-my $DEF_VRP_PARAM = 'path';
-my $DEF_VRP_DELIM = '/';
+my $UIP_KEYWORDS = '.keywords';  # user input param for ISINDEX queries
+
+my $SITE_PATH_DELIM = '/';  # a "/" for site path = "site root dir"
+my $DEF_VRP_UIPN = 'path';
+
+my $TALB = '[';  # left side of bounds for token replacement arguments
+my $TARB = ']';  # right side of same
+
+my $EMAIL_HEADER_STRIP_PATTERN = '[,<>()"\'\n]';  #for names and addys
+my $DEF_SMTP_HOST = 'localhost';
+my $DEF_SMTP_TIMEOUT = 30;
+my $DEF_SITE_TITLE = 'Untitled Website';
 
 ######################################################################
-# Return the only object of this class if it exists, or create that 
-# object and then return it.
 
 sub new {
-	my $class = shift( @_ );
-	my $self = SUPER::instance $class ( @_ );
+	my $starter = shift( @_ );  # starter is either object or class
+	my $self = {};
+	bless( $self, ref($starter) || $starter );
+	$self->{$KEY_INITIAL_UI} = ref($starter) ? 
+		$starter->{$KEY_INITIAL_UI} : $self->get_initial_user_input();
+	$self->initialize( @_ );
 	return( $self );
 }
 
-# This is provided so Class::Singleton->instance() can call it.
-sub _new_instance {
-	my $class = shift( @_ );
-	my $self = {};
-	bless( $self, ref($class) || $class );
+######################################################################
+# This collects user input, and should only be called once by a program
+# for the reason that multiple POST reads from STDIN can cause a hang 
+# if the extra data isn't there.
 
-	$self->_input_initial_query_string();
-	$self->initialize( @_ );
+sub get_initial_user_input {
+	my %iui = ();
 
-	return( $self );
+	$iui{$IKEY_COOKIE} = $ENV{'HTTP_COOKIE'} || $ENV{'COOKIE'};
+	
+	if( $ENV{'REQUEST_METHOD'} =~ /^(GET|HEAD|POST)$/ ) {
+		$iui{$IKEY_QUERY} = $ENV{'QUERY_STRING'};
+		
+		if( $ENV{'CONTENT_LENGTH'} <= $MAX_CONTENT_LENGTH ) {
+			read( STDIN, $iui{$IKEY_POST}, $ENV{'CONTENT_LENGTH'} );
+			chomp( $iui{$IKEY_POST} );
+		} else {  # post too large, error condition, post not taken
+			$iui{$IKEY_OVERSIZE} = $MAX_CONTENT_LENGTH;
+		}
+
+	} elsif( @ARGV ) {
+		$iui{$IKEY_OFFLINE} = $ARGV[0];
+
+	} else {
+		print STDERR "offline mode: enter query string on standard input\n";
+		print STDERR "it must be query-escaped and all one one line\n";
+		$iui{$IKEY_OFFLINE} = <STDIN>;
+		chomp( $iui{$IKEY_OFFLINE} );
+	}
+
+	return( \%iui );
 }
 
 ######################################################################
 
 sub initialize {
-	my ($self, $root, $delim, $prefs, $query) = @_;
+	my ($self, $root, $delim, $prefs, $user_input) = @_;
+	
+	%{$self} = (
+		$KEY_INITIAL_UI => $self->{$KEY_INITIAL_UI},
+		$KEY_IS_DEBUG => undef,
+		$KEY_SITE_ERRORS => [],
+		$KEY_SITE_ROOT_DIR  => undef,
+		$KEY_DELIM_SYS_PATH => undef,
+		$KEY_PREFS => {},
+		$KEY_SRP   => [''],  # needs element zero defined and empty
+		$KEY_VRP   => [''],  # needs element zero defined and empty
+		$KEY_PREFS_STACK => [],
+		$KEY_SRP_STACK   => [],
+		$KEY_VRP_STACK   => [],
+		$KEY_USER_COOKIE => $self->parse_url_encoded_cookies( 1, 
+			$self->user_cookie_str() 
+		),
+		$KEY_USER_INPUT  => $self->parse_url_encoded_queries( 1, 
+			$self->user_query_str(), 
+			$self->user_post_str(), 
+			$self->user_offline_str() 
+		),
+		$KEY_USER_VRP_EL => [],
+		$KEY_USER_VRP_LV => undef,
+		$KEY_PERSIST_QUERY  => {},
+		$KEY_VRP_UIPN => $DEF_VRP_UIPN,
+		$KEY_SMTP_HOST => $DEF_SMTP_HOST,
+		$KEY_SMTP_TIMEOUT => $DEF_SMTP_TIMEOUT,
+		$KEY_SITE_TITLE => $DEF_SITE_TITLE,
+		$KEY_OWNER_NAME => undef,
+		$KEY_OWNER_EMAIL => undef,
+		$KEY_OWNER_EM_VRP => undef,
+	);
+
 	$self->site_root_dir( $root );
 	$self->system_path_delimiter( $delim );
 	$self->site_prefs( $prefs );
-	$self->set_query_params( defined( $query ) ? $query : 
-		$self->{$KEY_INITIAL_QUERY} );
-	$self->persistant_query_params( {} );
-	$self->virtual_resource_path( '' );
-	$self->vrp_param_name( $DEF_VRP_PARAM );
-	$self->vrp_delimiter( $DEF_VRP_DELIM );
+	$self->user_input( $user_input );
 }
 
 ######################################################################
 
-sub site_root_dir {
-	my $self = shift( @_ );
-	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_SITE_ROOT_DIR} = $new_value;
-	}
-	return( $self->{$KEY_SITE_ROOT_DIR} );
-}
+sub user_cookie_str  { $_[0]->{$KEY_INITIAL_UI}->{$IKEY_COOKIE}   }
+sub user_query_str   { $_[0]->{$KEY_INITIAL_UI}->{$IKEY_QUERY}    }
+sub user_post_str    { $_[0]->{$KEY_INITIAL_UI}->{$IKEY_POST}     }
+sub user_offline_str { $_[0]->{$KEY_INITIAL_UI}->{$IKEY_OFFLINE}  }
+sub is_oversize_post { $_[0]->{$KEY_INITIAL_UI}->{$IKEY_OVERSIZE} }
 
 ######################################################################
 
-sub system_path_delimiter {
-	my $self = shift( @_ );
-	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_DELIM_SYS_PATH} = $new_value;
-	}
-	return( $self->{$KEY_DELIM_SYS_PATH} );
-}
+sub request_method { $ENV{'REQUEST_METHOD'} || 'GET' }
+sub content_length { $ENV{'CONTENT_LENGTH'} || '0' }
 
-######################################################################
-
-sub site_pref {
-	my $self = shift( @_ );
-	my $key = shift( @_ );
-	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_SITE_PREFS}->{$key} = $new_value;
-	}
-	return( $self->{$KEY_SITE_PREFS}->{$key} );
-}
-
-######################################################################
-
-sub site_prefs {
-	my $self = shift( @_ );
-	my $new_value = shift( @_ );
-	if( ref( $new_value ) eq 'HASH' ) {
-		$self->{$KEY_SITE_PREFS} = {%{$new_value}};
-	} elsif( defined( $new_value ) ) {
-		my $root = $self->{$KEY_SITE_ROOT_DIR};
-		my $delim = $self->{$KEY_DELIM_SYS_PATH};
-		my $filepath = "$root$delim$new_value";
-		my $result = $self->get_hash_from_file( $filepath );
-		if( ref($result) eq 'HASH' ) {
-			$self->{$KEY_SITE_PREFS} = $result;
-		} else {
-			die "can't execute global prefs file '$filepath': $!";
-		}
-	}
-	return( $self->{$KEY_SITE_PREFS} );  # returns ref
-}
-
-######################################################################
-
-sub keywords {
-	my $self = shift( @_ );
-	return( @{$self->{$KEY_QUERY_PARAMS}->fetch( $PARAM_KEYWORDS )} );
-}
-
-######################################################################
-
-sub param {
-	my $self = shift( @_ );
-	my $key = shift( @_ );
-	if( @_ ) {
-		return( $self->{$KEY_QUERY_PARAMS}->store( $key, @_ ) );
-	} elsif( wantarray ) {
-		my $ra_values = $self->{$KEY_QUERY_PARAMS}->fetch( $key );
-		return( (ref( $ra_values ) eq 'ARRAY') ? @{$ra_values} : () );
-	} else {
-		return( $self->{$KEY_QUERY_PARAMS}->fetch_value( $key ) );
-	}
-}
-
-######################################################################
-
-sub append {
-	my $self = shift( @_ );
-	return( $self->{$KEY_QUERY_PARAMS}->push( @_ ) );
-}
-
-######################################################################
-
-sub prepend {
-	my $self = shift( @_ );
-	return( $self->{$KEY_QUERY_PARAMS}->unshift( @_ ) );
-}
-
-######################################################################
-
-sub delete {
-	my $self = shift( @_ );
-	return( $self->{$KEY_QUERY_PARAMS}->delete( @_ ) );
-}
-
-######################################################################
-
-sub delete_all {
-	my $self = shift( @_ );
-	return( $self->{$KEY_QUERY_PARAMS}->delete_all() );
-}
-
-######################################################################
-
-sub query_string {
-	my $self = shift( @_ );
-	return( $self->{$KEY_QUERY_PARAMS}->to_url_encoded_string() );
-}
-
-######################################################################
-
-sub query_params {
-	my $self = shift( @_ );
-	return( $self->{$KEY_QUERY_PARAMS} );  # return ref to HoA
-}
-
-######################################################################
-
-sub set_query_params {
-	my $self = shift( @_ );
-	my $new_value = shift( @_ );
-	my $query_params;
-	
-	if( ref( $new_value ) eq 'GLOB' ) {
-		return( $self->read_query_params( $new_value ) );
-	}
-	
-	if( ref( $new_value ) eq 'CGI::HashOfArrays' ) {
-		$query_params = $new_value->clone();
-
-	} elsif( ref( $new_value ) eq 'HASH' ) {
-		$query_params = CGI::HashOfArrays->new( 1, $new_value );
-	
-	} elsif( ref( $new_value ) eq 'ARRAY' ) {
-		$query_params = CGI::HashOfArrays->new( 1, 
-			{ $PARAM_KEYWORDS => $new_value } );
-
-	} elsif( $new_value eq '' ) {
-		$query_params = CGI::HashOfArrays->new( 1 );
-	} elsif( $new_value =~ /=/ ) {
-		$query_params = CGI::HashOfArrays->new( 1, $new_value );
-	} else {
-		$query_params = 
-			CGI::HashOfArrays->new( 1, { $PARAM_KEYWORDS => 
-			[split( /\s+/, $self->_url_unescape( $new_value ) )] } );
-	} 
-	
-	$self->{$KEY_QUERY_PARAMS} = $query_params;
-}
-
-######################################################################
-
-sub save_query_params {
-	my $self = shift( @_ );
-	my $fh = shift( @_ );
-	return( 0 ) unless( ref( $fh ) eq 'GLOB' );
-	require CGI::SequentialFile;
-	my $query_file = CGI::SequentialFile->new( $fh );
-	return( $query_file->write_records( 
-		[$self->{$KEY_QUERY_PARAMS}] ) );
-}
-	
-######################################################################
-
-sub read_query_params {
-	my $self = shift( @_ );
-	my $fh = shift( @_ );
-	return( 0 ) unless( ref( $fh ) eq 'GLOB' );
-	require CGI::SequentialFile;
-	my $query_file = CGI::SequentialFile->new( $fh );
-	my $ra_record = $query_file->read_records( 1, 1 );
-	if( $ra_record and $ra_record->[0] ) {
-		$self->{$KEY_QUERY_PARAMS} = $ra_record->[0];
-	} else {
-		$self->{$KEY_QUERY_PARAMS} = CGI::HashOfArrays->new( 1 );
-	}
-	return( $query_file->is_error() ? undef : 1 );
-}
-	
-######################################################################
-
-sub persistant_query_param {
-	my $self = shift( @_ );
-	my $key = shift( @_ );
-	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_PERSIST_PARAMS}->{$key} = $new_value;
-	}
-	return( $self->{$KEY_PERSIST_PARAMS}->{$key} );
-}
-
-######################################################################
-
-sub persistant_query_params {
-	my $self = shift( @_ );
-	if( ref( my $new_value = shift( @_ ) ) eq 'HASH' ) {
-		$self->{$KEY_PERSIST_PARAMS} = $new_value;
-	}
-	return( $self->{$KEY_PERSIST_PARAMS} );  # returns ref
-}
-
-######################################################################
-
+sub server_name { $ENV{'SERVER_NAME'} || 'localhost' }
+sub virtual_host { $ENV{'HTTP_HOST'} || $_[0]->server_name() }
+sub server_port { $ENV{'SERVER_PORT'} || 80 }
 sub script_name {
-	my $self = shift( @_ );
-	return( $self->_url_unescape( $ENV{'SCRIPT_NAME'} ) );
+	my $str = $ENV{'SCRIPT_NAME'};
+	$str =~ tr/+/ /;
+	$str =~ s/%([0-9a-fA-F]{2})/pack("c",hex($1))/ge;
+	return( $str );
 }
-	
+
+sub http_referer {
+	my $str = $ENV{'HTTP_REFERER'};
+	$str =~ tr/+/ /;
+	$str =~ s/%([0-9a-fA-F]{2})/pack("c",hex($1))/ge;
+	return( $str );
+}
+
+sub remote_addr { $ENV{'REMOTE_ADDR'} || '127.0.0.1' }
+sub remote_host { $ENV{'REMOTE_HOST'} || $ENV{'REMOTE_ADDR'} || 
+	'localhost' }
+sub remote_user { $ENV{'AUTH_USER'} || $ENV{'LOGON_USER'} || 
+	$ENV{'REMOTE_USER'} || $ENV{'HTTP_FROM'} || $ENV{'REMOTE_IDENT'} }
+sub user_agent { $ENV{'HTTP_USER_AGENT'} }
+
 ######################################################################
 
-sub self_url {
-	my $self = shift( @_ );
-	my $initial_query = $self->{$KEY_INITIAL_QUERY};
-	return( $self->base_url().
-		($initial_query ? "?$initial_query" : '') );
+sub is_mod_perl {
+	return( defined( $ENV{'GATEWAY_INTERFACE'} ) &&
+		$ENV{'GATEWAY_INTERFACE'} =~ /^CGI-Perl/ );
 }
 
 ######################################################################
 
 sub base_url {
 	my $self = shift( @_ );
-	my $port = $ENV{'SERVER_PORT'} || 80;
+	my $port = $self->server_port();
 	return( 'http://'.$self->virtual_host().
 		($port != 80 ? ":$port" : '').
 		$self->script_name() );
@@ -334,78 +268,37 @@ sub base_url {
 
 ######################################################################
 
-sub persistant_url {
+sub self_url {
 	my $self = shift( @_ );
-	my $persist_params = $self->{$KEY_QUERY_PARAMS}->clone( 
-		[keys %{$self->{$KEY_PERSIST_PARAMS}}] );
-	my $persist_query_str = $persist_params->to_url_encoded_string();
-	return( $self->base_url().
-		($persist_query_str ? "?$persist_query_str" : '') );
+	my $query = $self->user_query_str() || 
+		$self->user_offline_str();
+	return( $self->base_url().($query ? "?$query" : '') );
 }
 
 ######################################################################
 
-sub http_referer {
+sub self_post {
 	my $self = shift( @_ );
-	return( $self->_url_unescape( $ENV{'HTTP_REFERER'} ) );
-}
-	
-######################################################################
-
-sub cookie_raw {
-	my $self = shift( @_ );
-	return( $ENV{'HTTP_COOKIE'} || $ENV{'COOKIE'} );
-}
-
-######################################################################
-
-sub request_method {
-	my $self = shift( @_ );
-	return( $ENV{'REQUEST_METHOD'} );
-}
-	
-######################################################################
-
-sub server_name {
-	my $self = shift( @_ );
-	return( $ENV{'SERVER_NAME'} || 'localhost' );
+	my $button_label = shift( @_ ) || 'click here';
+	my $url = $self->self_url();
+	my $post_fields = $self->parse_url_encoded_queries( 0, 
+		$self->user_post_str() )->to_html_encoded_hidden_fields();
+	return( <<__endquote );
+<FORM METHOD="post" ACTION="$url">
+$post_fields
+<INPUT TYPE="submit" NAME="" VALUE="$button_label">
+</FORM>
+__endquote
 }
 
 ######################################################################
 
-sub virtual_host {
+sub self_html {
 	my $self = shift( @_ );
-	return( $ENV{'HTTP_HOST'} || $self->server_name() );
-}
-
-######################################################################
-
-sub remote_addr {
-	my $self = shift( @_ );
-	return( $ENV{'REMOTE_ADDR'} || '127.0.0.1' );
-}
-
-######################################################################
-
-sub remote_host {
-	my $self = shift( @_ );
-	return( $ENV{'REMOTE_HOST'} || $ENV{'REMOTE_ADDR'} || 'localhost' );
-}
-
-######################################################################
-
-sub remote_user {
-	my $self = shift( @_ );
-	return( $ENV{'AUTH_USER'} || $ENV{'LOGON_USER'} || 
-		$ENV{'REMOTE_USER'} || $ENV{'HTTP_FROM'} || 
-		$ENV{'REMOTE_IDENT'} );
-}
-
-######################################################################
-
-sub user_agent {
-	my $self = shift( @_ );
-	return( $ENV{'HTTP_USER_AGENT'} );
+	my $visible_text = shift( @_ ) || 'here';
+	return( $self->user_post_str() ? 
+		$self->self_post( $visible_text ) : 
+		'<A HREF="'.$self->self_url().'">'.$visible_text.'</A>' );
 }
 
 ######################################################################
@@ -420,69 +313,325 @@ sub is_debug {
 
 ######################################################################
 
+sub get_errors {
+	return( grep( defined($_), @{$_[0]->{$KEY_SITE_ERRORS}} ) );
+}
+
+sub get_error {
+	my ($self, $index) = @_;
+	defined( $index ) or $index = -1;
+	return( $self->{$KEY_SITE_ERRORS}->[$index] );
+}
+
+sub add_error {
+	my ($self, $message) = @_;
+	return( push( @{$self->{$KEY_SITE_ERRORS}}, $message ) );
+}
+
+sub add_no_error {
+	push( @{$_[0]->{$KEY_SITE_ERRORS}}, undef );
+}
+
+sub add_filesystem_error {
+	my ($self, $filename, $unique_part) = @_;
+	my $filepath = $self->srp_child_string( $filename );
+	return( $self->{$KEY_SITE_ERRORS} = 
+		"can't $unique_part file '$filepath': $!" );
+}
+
+######################################################################
+
+sub site_root_dir {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_SITE_ROOT_DIR} = $new_value;
+	}
+	return( $self->{$KEY_SITE_ROOT_DIR} );
+}
+
+sub system_path_delimiter {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_DELIM_SYS_PATH} = $new_value;
+	}
+	return( $self->{$KEY_DELIM_SYS_PATH} );
+}
+
+sub phys_filename_string {
+	my ($self, $filename) = @_;
+	my $root_dir = $self->{$KEY_SITE_ROOT_DIR};
+	my $sys_delim = $self->{$KEY_DELIM_SYS_PATH};
+	my @sp_parts = @{$self->srp_child( $filename )};
+	return( $root_dir.join( $sys_delim, @sp_parts ) );
+}
+
+######################################################################
+
+sub site_prefs {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_PREFS} = $self->get_prefs_rh( $new_value ) || {};
+	}
+	return( $self->{$KEY_PREFS} );
+}
+
+sub move_site_prefs {
+	my ($self, $new_value) = @_;
+	push( @{$self->{$KEY_PREFS_STACK}}, $self->{$KEY_PREFS} );
+	$self->{$KEY_PREFS} = $self->get_prefs_rh( $new_value ) || {};
+}
+
+sub restore_site_prefs {
+	my $self = shift( @_ );
+	$self->{$KEY_PREFS} = pop( @{$self->{$KEY_PREFS_STACK}} ) || {};
+}
+
+sub site_pref {
+	my $self = shift( @_ );
+	my $key = shift( @_ );
+
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_PREFS}->{$key} = $new_value;
+	}
+	my $value = $self->{$KEY_PREFS}->{$key};
+
+	# if current version doesn't define key, look in older versions
+	unless( defined( $value ) ) {
+		foreach my $prefs (reverse @{$self->{$KEY_PREFS_STACK}}) {
+			$value = $prefs->{$key};
+			defined( $value ) and last;
+		}
+	}
+	
+	return( $value );
+}
+
+######################################################################
+
+sub site_resource_path {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		my @elements = ('', ref( $new_value ) eq 'ARRAY' ?
+			@{$new_value} : @{$self->site_path_str_to_ra( $new_value )});
+		$self->{$KEY_SRP} = $self->simplify_path_ra( \@elements );
+	}
+	return( $self->{$KEY_SRP} );
+}
+
+sub site_resource_path_string {
+	my $self = shift( @_ );
+	my $trailer = shift( @_ ) ? $SITE_PATH_DELIM : '';
+	return( $self->site_path_ra_to_str( $self->{$KEY_SRP} ).$trailer );
+}
+	
+sub move_current_srp {
+	my ($self, $chg_vec) = @_;
+	push( @{$self->{$KEY_SRP_STACK}}, $self->{$KEY_SRP} );
+	my $ra_elements = $self->join_two_path_ra( $self->{$KEY_SRP}, 
+		ref($chg_vec) eq 'ARRAY' ? $chg_vec :
+		$self->site_path_str_to_ra( $chg_vec ) );
+	$self->{$KEY_SRP} = $self->simplify_path_ra( $ra_elements );
+}
+
+sub restore_last_srp {
+	my $self = shift( @_ );
+	$self->{$KEY_SRP} = pop( @{$self->{$KEY_SRP_STACK}} ) || [];
+}
+
+sub srp_child {
+	my ($self, $filename) = @_;
+	my $ra_elements = $self->join_two_path_ra( $self->{$KEY_SRP}, 
+		ref($filename) eq 'ARRAY' ? $filename :
+		$self->site_path_str_to_ra( $filename ) );
+	return( $self->simplify_path_ra( $ra_elements ) );
+}
+
+sub srp_child_string {
+	my ($self, $fn, $sx) = @_;
+	$sx and $sx = $SITE_PATH_DELIM;
+	return( $self->site_path_ra_to_str( $self->srp_child( $fn ) ).$sx );
+}
+
+######################################################################
+
 sub virtual_resource_path {
 	my $self = shift( @_ );
-	my $new_value = shift( @_ );
-	if( ref( $new_value ) eq 'ARRAY' ) {
-		$self->{$KEY_VRP_ELEMENTS} = [map { lc($_) } @{$new_value}];
-		$self->{$KEY_CURR_VRP_LEV} = 0;
-	} elsif( defined( $new_value ) ) {
-		$self->{$KEY_VRP_ELEMENTS} = 
-			[split( $self->{$KEY_VRP_DELIM}, lc( $new_value ) )];
-		$self->{$KEY_CURR_VRP_LEV} = 0;
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		my @elements = ('', ref( $new_value ) eq 'ARRAY' ?
+			@{$new_value} : @{$self->site_path_str_to_ra( $new_value )});
+		$self->{$KEY_VRP} = $self->simplify_path_ra( \@elements );
 	}
-	return( $self->{$KEY_VRP_ELEMENTS} );  # returns ref
+	return( $self->{$KEY_VRP} );
 }
 
-######################################################################
-
-sub vrp_as_string {
+sub virtual_resource_path_string {
 	my $self = shift( @_ );
-	return( join( $self->{$KEY_VRP_DELIM}, @{$self->{$KEY_VRP_ELEMENTS}} ) );
+	my $trailer = shift( @_ ) ? $SITE_PATH_DELIM : '';
+	return( $self->site_path_ra_to_str( $self->{$KEY_VRP} ).$trailer );
+}
+	
+sub move_current_vrp {
+	my ($self, $chg_vec) = @_;
+	push( @{$self->{$KEY_VRP_STACK}}, $self->{$KEY_VRP} );
+	my $ra_elements = $self->join_two_path_ra( $self->{$KEY_VRP}, 
+		ref($chg_vec) eq 'ARRAY' ? $chg_vec :
+		$self->site_path_str_to_ra( $chg_vec ) );
+	$self->{$KEY_VRP} = $self->simplify_path_ra( $ra_elements );
+}
+
+sub restore_last_vrp {
+	my $self = shift( @_ );
+	$self->{$KEY_VRP} = pop( @{$self->{$KEY_VRP_STACK}} ) || [];
+}
+
+sub vrp_child {
+	my ($self, $filename) = @_;
+	my $ra_elements = $self->join_two_path_ra( $self->{$KEY_VRP}, 
+		ref($filename) eq 'ARRAY' ? $filename :
+		$self->site_path_str_to_ra( $filename ) );
+	return( $self->simplify_path_ra( $ra_elements ) );
+}
+
+sub vrp_child_string {
+	my ($self, $fn, $sx) = @_;
+	$sx and $sx = $SITE_PATH_DELIM;
+	return( $self->site_path_ra_to_str( $self->vrp_child( $fn ) ).$sx );
 }
 
 ######################################################################
 
-sub current_vrp_level {
+sub user_cookie {
+	my $self = shift( @_ );
+	if( ref( my $new_value = shift( @_ ) ) eq 'CGI::HashOfArrays' ) {
+		$self->{$KEY_USER_COOKIE} = $new_value->clone();
+	}
+	return( $self->{$KEY_USER_COOKIE} );
+}
+
+sub user_cookie_string {
+	my $self = shift( @_ );
+	return( $self->{$KEY_USER_COOKIE}->to_url_encoded_string('; ','&') );
+}
+
+sub user_cookie_param {
+	my $self = shift( @_ );
+	my $key = shift( @_ );
+	if( @_ ) {
+		return( $self->{$KEY_USER_COOKIE}->store( $key, @_ ) );
+	} elsif( wantarray ) {
+		return( @{$self->{$KEY_USER_COOKIE}->fetch( $key ) || []} );
+	} else {
+		return( $self->{$KEY_USER_COOKIE}->fetch_value( $key ) );
+	}
+}
+
+######################################################################
+
+sub user_input {
+	my $self = shift( @_ );
+	if( ref( my $new_value = shift( @_ ) ) eq 'CGI::HashOfArrays' ) {
+		$self->{$KEY_USER_INPUT} = $new_value->clone();
+	}
+	return( $self->{$KEY_USER_INPUT} );
+}
+
+sub user_input_string {
+	my $self = shift( @_ );
+	return( $self->{$KEY_USER_INPUT}->to_url_encoded_string() );
+}
+
+sub user_input_param {
+	my $self = shift( @_ );
+	my $key = shift( @_ );
+	if( @_ ) {
+		return( $self->{$KEY_USER_INPUT}->store( $key, @_ ) );
+	} elsif( wantarray ) {
+		return( @{$self->{$KEY_USER_INPUT}->fetch( $key ) || []} );
+	} else {
+		return( $self->{$KEY_USER_INPUT}->fetch_value( $key ) );
+	}
+}
+
+sub user_input_keywords {
+	my $self = shift( @_ );
+	return( @{$self->{$KEY_USER_INPUT}->fetch( $UIP_KEYWORDS )} );
+}
+
+######################################################################
+
+sub user_vrp {
 	my $self = shift( @_ );
 	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_CURR_VRP_LEV} = 0 + $new_value;
+		my @elements = ('', ref( $new_value ) eq 'ARRAY' ?
+			@{$new_value} : @{$self->site_path_str_to_ra( $new_value )});
+		$self->{$KEY_USER_VRP_EL} = $self->simplify_path_ra( \@elements );
 	}
-	return( $self->{$KEY_CURR_VRP_LEV} );
+	return( $self->{$KEY_USER_VRP_EL} );
 }
 
-######################################################################
-
-sub inc_vrp_level {
+sub user_vrp_string {
 	my $self = shift( @_ );
-	return( ++$self->{$KEY_CURR_VRP_LEV} );
+	return( $self->site_path_ra_to_str( $self->{$KEY_USER_VRP_EL} ) );
 }
 
-######################################################################
-
-sub dec_vrp_level {
+sub current_user_vrp_level {
 	my $self = shift( @_ );
-	return( --$self->{$KEY_CURR_VRP_LEV} );
-}
-
-######################################################################
-
-sub current_vrp_element {
-	my $self = shift( @_ );
-	my $curr_elem_num = $self->{$KEY_CURR_VRP_LEV};
 	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_VRP_ELEMENTS}->[$curr_elem_num] = $new_value;
+		$self->{$KEY_USER_VRP_LV} = 0 + $new_value;
 	}
-	return( $self->{$KEY_VRP_ELEMENTS}->[$curr_elem_num] );
+	return( $self->{$KEY_USER_VRP_LV} );
+}
+
+sub inc_user_vrp_level {
+	my $self = shift( @_ );
+	return( ++$self->{$KEY_USER_VRP_LV} );
+}
+
+sub dec_user_vrp_level {
+	my $self = shift( @_ );
+	return( --$self->{$KEY_USER_VRP_LV} );
+}
+
+sub current_user_vrp_element {
+	my $self = shift( @_ );
+	my $curr_elem_num = $self->{$KEY_USER_VRP_LV};
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_USER_VRP_EL}->[$curr_elem_num] = $new_value;
+	}
+	return( $self->{$KEY_USER_VRP_EL}->[$curr_elem_num] );
 }
 
 ######################################################################
 
-sub higher_vrp_as_string {
+sub persistant_user_input_params {
 	my $self = shift( @_ );
-	my $curr_elem_num = $self->{$KEY_CURR_VRP_LEV};
-	return( join( $self->{$KEY_VRP_DELIM}, 
-		@{$self->{$KEY_VRP_ELEMENTS}}[0..($curr_elem_num-1)] ) );
+	if( ref( my $new_value = shift( @_ ) ) eq 'HASH' ) {
+		$self->{$KEY_PERSIST_QUERY} = {%{$new_value}};
+	}
+	return( $self->{$KEY_PERSIST_QUERY} );
+}
+
+sub persistant_user_input_param {
+	my $self = shift( @_ );
+	my $key = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_PERSIST_QUERY}->{$key} = $new_value;
+	}	
+	return( $self->{$KEY_PERSIST_QUERY}->{$key} );
+}
+
+sub persistant_user_input_string {
+	my $self = shift( @_ );
+	return( $self->{$KEY_USER_INPUT}->clone( 
+		[keys %{$self->{$KEY_PERSIST_QUERY}}] 
+		)->to_url_encoded_string() );
+}
+
+sub persistant_url {
+	my $self = shift( @_ );
+	my $persist_input_str = $self->persistant_user_input_string();
+	return( $self->base_url().
+		($persist_input_str ? "?$persist_input_str" : '') );
 }
 
 ######################################################################
@@ -490,64 +639,142 @@ sub higher_vrp_as_string {
 sub vrp_param_name {
 	my $self = shift( @_ );
 	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_VRP_PARAM} = $new_value;
+		$self->{$KEY_VRP_UIPN} = $new_value;
 	}
-	return( $self->{$KEY_VRP_PARAM} );
+	return( $self->{$KEY_VRP_UIPN} );
+}
+
+# This currently supports vrp in query string format only.
+# If no argument provided, returns "[base]?[pers]&path"
+# If 1 argument provided, returns "[base]?[pers]&path=[vrp_child]"
+# If 2 arguments provided, returns "[base]?[pers]&path=[vrp_child]/"
+
+sub persistant_vrp_url {
+	my $self = shift( @_ );
+	my $chg_vec = shift( @_ );
+	my $persist_input_str = $self->persistant_user_input_string();
+	return( $self->base_url().'?'.
+		($persist_input_str ? "$persist_input_str&" : '').
+		$self->{$KEY_VRP_UIPN}.(defined( $chg_vec ) ? 
+		'='.$self->vrp_child_string( $chg_vec, @_ ) : '') );
 }
 
 ######################################################################
 
-sub vrp_delimiter {
+sub smtp_host {
 	my $self = shift( @_ );
 	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_VRP_DELIM} = $new_value;
+		$self->{$KEY_SMTP_HOST} = $new_value;
 	}
-	return( $self->{$KEY_VRP_DELIM} );
+	return( $self->{$KEY_SMTP_HOST} );
 }
 
-######################################################################
-# Note: in order for this to work, the file must contain valid perl 
-# code that, when compiled, produces a valid HASH reference.
-
-sub get_hash_from_file {
+sub smtp_timeout {
 	my $self = shift( @_ );
-	my $filename = shift( @_ );
-	my $result = do $filename;
-	return( (ref( $result ) eq 'HASH') ? $result : undef );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_SMTP_TIMEOUT} = $new_value;
+	}
+	return( $self->{$KEY_SMTP_TIMEOUT} );
 }
-	
-######################################################################
 
-sub today_date_utc {
-	my ($sec, $min, $hour, $mday, $mon, $year) = gmtime(time);
-	$year += 1900;  # year counts from 1900 AD otherwise
-	$mon += 1;      # ensure January is 1, not 0
-	my @parts = ($year, $mon, $mday, $hour, $min, $sec);
-	return( sprintf( "%4.4d-%2.2d-%2.2d %2.2d:%2.2d:%2.2d UTC", @parts ) );
+sub site_title {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_SITE_TITLE} = $new_value;
+	}
+	return( $self->{$KEY_SITE_TITLE} );
+}
+
+sub site_owner_name {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_OWNER_NAME} = $new_value;
+	}
+	return( $self->{$KEY_OWNER_NAME} );
+}
+
+sub site_owner_email {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_OWNER_EMAIL} = $new_value;
+	}
+	return( $self->{$KEY_OWNER_EMAIL} );
+}
+
+sub site_owner_email_vrp {
+	my $self = shift( @_ );
+	if( defined( my $new_value = shift( @_ ) ) ) {
+		$self->{$KEY_OWNER_EM_VRP} = $new_value;
+	}
+	return( $self->{$KEY_OWNER_EM_VRP} );
+}
+
+sub site_owner_email_html {
+	my $self = shift( @_ );
+	my $visible_text = shift( @_ ) || 'e-mail';
+	my $owner_vrp = $self->site_owner_email_vrp();
+	my $owner_email = $self->site_owner_email();
+	return( $owner_vrp ? '<A HREF="'.$self->persistant_vrp_url( 
+		$owner_vrp ).'">'.$visible_text.'</A>' : '<A HREF="mailto:'.
+		$owner_email.'">'.$visible_text.'</A> ('.$owner_email.')' );
 }
 
 ######################################################################
 
 sub send_email_message {
-	my ($self, $smtp_host, $to_name, $to_email, $from_name, 
-		$from_email, $subject, $body) = @_;
+	my ($self, $to_name, $to_email, $from_name, $from_email, 
+		$subject, $body, $body_head_addition) = @_;
+
 	$to_name    =~ s/$EMAIL_HEADER_STRIP_PATTERN//g;
 	$to_email   =~ s/$EMAIL_HEADER_STRIP_PATTERN//g;
 	$from_name  =~ s/$EMAIL_HEADER_STRIP_PATTERN//g;
 	$from_email =~ s/$EMAIL_HEADER_STRIP_PATTERN//g;
-	my $smtp;
+	$self->is_debug() and $subject .= " -- debug";
+	
+	my $body_header = <<__endquote.
+--------------------------------------------------
+This e-mail was sent at @{[$self->today_date_utc()]} 
+by the web site "@{[$self->site_title()]}", 
+which is located at "@{[$self->base_url()]}".
+__endquote
+	$body_head_addition.
+	($self->is_debug() ? "Debugging is currently turned on.\n" : 
+	'').<<__endquote;
+--------------------------------------------------
+__endquote
 
+	my $body_footer = <<__endquote;
+
+
+--------------------------------------------------
+END OF MESSAGE
+__endquote
+	
+	my $host = $self->smtp_host();
+	my $timeout = $self->smtp_timeout();
 	my $error_msg = '';
 
 	TRY: {
+		my $smtp;
+
 		eval { require Net::SMTP; };
 		if( $@ ) {
 			$error_msg = "can't open program module 'Net::SMTP'";
 			last TRY;
 		}
 	
-		unless( $smtp = Net::SMTP->new( $smtp_host, Timeout => 30 ) ) {
-			$error_msg = "can't connect to smtp host: $smtp_host";
+		unless( $smtp = Net::SMTP->new( $host, Timeout => $timeout ) ) {
+			$error_msg = "can't connect to smtp host: $host";
+			last TRY;
+		}
+
+		unless( $smtp->verify( $from_email ) ) {
+			$error_msg = "invalid address: @{[$smtp->message()]}";
+			last TRY;
+		}
+
+		unless( $smtp->verify( $to_email ) ) {
+			$error_msg = "invalid address: @{[$smtp->message()]}";
 			last TRY;
 		}
 
@@ -561,16 +788,16 @@ sub send_email_message {
 			last TRY;
 		}
 
-		$smtp->data();
-		$smtp->datasend( <<__endquote );
+		$smtp->data( <<__endquote );
 From: $from_name <$from_email>
 To: $to_name <$to_email>
 Subject: $subject
 Content-Type: text/plain; charset=us-ascii
 
+$body_header
 $body
+$body_footer
 __endquote
-		$smtp->dataend();
 
 		$smtp->quit();
 	}
@@ -580,41 +807,103 @@ __endquote
 
 ######################################################################
 
-sub _input_initial_query_string {
-	my $self = shift( @_ );
-	my $query_string;
+sub today_date_utc {
+	my ($sec, $min, $hour, $mday, $mon, $year) = gmtime(time);
+	$year += 1900;  # year counts from 1900 AD otherwise
+	$mon += 1;      # ensure January is 1, not 0
+	my @parts = ($year, $mon, $mday, $hour, $min, $sec);
+	return( sprintf( "%4.4d-%2.2d-%2.2d %2.2d:%2.2d:%2.2d UTC", @parts ) );
+}
+
+######################################################################
+# Note: in order for this to work, the file must contain valid perl 
+# code that, when compiled, produces a valid HASH reference.
+
+sub get_hash_from_file {
+	my ($self, $filename) = @_;
+	my $result = do $filename;
+	return( (ref( $result ) eq 'HASH') ? $result : undef );
+}
 	
-	if( $ENV{'REQUEST_METHOD'} =~ /^(GET|HEAD)$/ ) {
-		$query_string = $ENV{'QUERY_STRING'};
+######################################################################
 
-	} elsif( $ENV{'REQUEST_METHOD'} eq 'POST' ) {
-		if( $ENV{'CONTENT_LENGTH'} <= $MAX_CONTENT_LENGTH ) {
-			read( STDIN, $query_string, $ENV{'CONTENT_LENGTH'} );
-		} else {
-			die "POST query too large; >$MAX_CONTENT_LENGTH bytes.\n";
-		}
-		chomp( $query_string );
+sub get_prefs_rh {
+	my ($self, $site_prefs) = @_;
 
-	} elsif( @ARGV ) {
-		$query_string = $ARGV[0];
+	if( ref( $site_prefs ) eq 'HASH' ) {
+		$site_prefs = {%{$site_prefs}};
 
 	} else {
-		print STDERR "offline mode: enter query string on standard input\n";
-		print STDERR "it must be query-escaped and all one one line\n";
-		$query_string = <STDIN>;
-		chomp( $query_string );
+		$self->add_no_error();
+		$site_prefs = $self->get_hash_from_file( 
+				$self->phys_filename_string( $site_prefs ) ) or do {
+			my $filename = $self->srp_child_string( $site_prefs );
+			$self->add_error( <<__endquote );
+can't obtain required site preferences from file "$filename": $!
+__endquote
+		};
+
 	}
-	
-	$self->{$KEY_INITIAL_QUERY} = $query_string;
+	return( $site_prefs );
 }
 
 ######################################################################
 
-sub _url_unescape {
+sub site_path_str_to_ra {
+	return( [split( $SITE_PATH_DELIM, $_[1] )] );
+}
+
+sub site_path_ra_to_str {
+	return( join( $SITE_PATH_DELIM, @{$_[1]} ) );
+}
+
+sub join_two_path_ra {
+	my ($self, $curr, $chg) = @_;
+	return( @{$chg} && $chg->[0] eq '' ? [@{$chg}] : [@{$curr}, @{$chg}] );
+}
+
+sub simplify_path_ra {
 	my $self = shift( @_ );
-	my $str = shift( @_ );
-	$str =~ s/%([0-9a-fA-F]{2})/pack("c",hex($1))/ge;
-	return( $str );
+	my @in = @{shift( @_ )};
+	my @mid = ();
+	my @out = $in[0] eq '' ? shift( @in ) : ();
+	
+	foreach my $part (@in) {
+		$part =~ /[a-zA-Z0-9]/ and push( @mid, $part ) and next;
+		$part ne '..' and next;
+		@mid ? pop( @mid ) : push( @out, '..' );
+	}
+
+	$out[0] eq '' and @out = '';
+	push( @out, @mid );
+	return( \@out );
+}
+
+######################################################################
+
+sub parse_url_encoded_cookies {
+	my $self = shift( @_ );
+	my $parsed = CGI::HashOfArrays->new( shift( @_ ) );
+	foreach my $string (@_) {
+		$string =~ s/\s+/ /g;
+		$parsed->from_url_encoded_string( $string, '; ', '&' );
+	}
+	return( $parsed );
+}
+
+sub parse_url_encoded_queries {
+	my $self = shift( @_ );
+	my $parsed = CGI::HashOfArrays->new( shift( @_ ) );
+	foreach my $string (@_) {
+		$string =~ s/\s+/ /g;
+		if( $string =~ /=/ ) {
+			$parsed->from_url_encoded_string( $string );
+		} else {
+			$parsed->from_url_encoded_string( 
+				"$UIP_KEYWORDS=$string", undef, ' ' );
+		}
+	}
+	return( $parsed );
 }
 
 ######################################################################
@@ -642,3 +931,5 @@ Address comments, suggestions, and bug reports to B<perl@DarrenDuncan.net>.
 perl(1).
 
 =cut
+
+

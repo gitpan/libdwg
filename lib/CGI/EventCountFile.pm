@@ -19,7 +19,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION);
-$VERSION = '1.0b';
+$VERSION = '1.01';
 
 ######################################################################
 
@@ -90,7 +90,7 @@ use Fcntl qw(:DEFAULT :flock);
 			$dcm_file->unlock_and_close();
 			return( 1 );
 		}
-		$dcm_file->key_increment( $usg_prefs->{$UKEY_T_TOTAL} );
+		$dcm_file->key_increment( '__total__' );
 		$dcm_file->set_all_day_counts_to_zero();
 		$dcm_file->write_all_records();
 		$dcm_file->unlock_and_close();
@@ -756,6 +756,22 @@ sub key_accumulate {
 	$self->{$KEY_FILE_LINES}->{$dest_key} = 
 		join( $DELIM_FIELDS, @dest_fields );
 	return( wantarray ? @dest_fields : \@dest_fields );
+}
+
+######################################################################
+
+=head2 delete_all_keys()
+
+This method deletes all the internally stored event records.  A 
+subsequent call to write_all_records() would then clear the file.
+
+=cut
+
+######################################################################
+
+sub delete_all_keys {
+	my ($self) = @_;
+	$self->{$KEY_FILE_LINES} = {};
 }
 
 ######################################################################

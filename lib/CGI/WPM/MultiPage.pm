@@ -20,7 +20,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.1b';
+$VERSION = '0.2';
 
 ######################################################################
 
@@ -51,12 +51,8 @@ use CGI::WPM::Base;
 # Names of properties for objects of this class are declared here:
 my $KEY_SITE_GLOBALS = 'site_globals';  # hold global site values
 my $KEY_PAGE_CONTENT = 'page_content';  # hold return values
-my $KEY_PAGE_ROOT_DIR = 'page_root_dir';  # root dir of support files
-my $KEY_PAGE_PREFS   = 'page_prefs';    # hold our own settings
-my $KEY_IS_ERROR   = 'is_error';    # holds error string, if any
 
 # Keys for items in site global preferences:
-my $GKEY_T_VRP_ID = 't_vrp_id';  # sort of like "__persist__&path="
 
 # Keys for items in site page preferences:
 my $PKEY_VRP_HANDLERS = 'vrp_handlers';  # match wpm handler to a vrp
@@ -67,9 +63,6 @@ my $PKEY_MENU_COLWID  = 'menu_colwid';  # width of each col, in pixels
 my $PKEY_MENU_SHOWDIV = 'menu_showdiv';  # show dividers btwn menu groups?
 my $PKEY_MENU_BGCOLOR = 'menu_bgcolor';  # background for menu
 my $PKEY_PAGE_SHOWDIV = 'page_showdiv';  # do we use HRs to sep menu?
-# my $PKEY_BODY_ATTR    = 'body_attr';   handled by Base before get_page
-# my $PKEY_PAGE_HEADER  = 'page_header'; handled by Base before get_page
-# my $PKEY_PAGE_FOOTER  = 'page_footer'; handled by Base before get_page
 
 # Keys for elements in $PKEY_VRP_HANDLERS hash:
 my $HKEY_WPM_MODULE = 'wpm_module';  # wpm module making content
@@ -92,7 +85,7 @@ sub _dispatch_by_user {
 	$self->get_inner_wpm_content();  # puts in $webpage
 
 	my $webpage = $self->{$KEY_PAGE_CONTENT};  # needs to go after giwc
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
+	my $rh_prefs = $self->{$KEY_SITE_GLOBALS}->site_prefs();
 
 	if( $rh_prefs->{$PKEY_PAGE_SHOWDIV} ) {
 		$webpage->body_prepend( "\n<HR>\n" );
@@ -108,63 +101,74 @@ sub _dispatch_by_user {
 
 sub get_inner_wpm_content {
 	my $self = shift( @_ );
+	my $webpage;
 	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
+	my $rh_prefs = $globals->site_prefs();
 
-	my $page_id = $globals->current_vrp_element();
+	my $page_id = $globals->current_user_vrp_element();
 	$page_id ||= $rh_prefs->{$PKEY_DEF_HANDLER};
 	my $vrp_handler = $rh_prefs->{$PKEY_VRP_HANDLERS}->{$page_id};
 	
 	unless( ref( $vrp_handler ) eq 'HASH' ) {
+		$webpage = $self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
+
 		$webpage->title( '404 Page Not Found' );
 
 		$webpage->body_content( <<__endquote );
 <H2 ALIGN="center">@{[$webpage->title()]}</H2>
 
 <P>I'm sorry, but the page you requested, 
-"@{[$globals->vrp_as_string()]}", doesn't seem to exist.  If you 
-manually typed that address into the browser, then it is either 
+"@{[$globals->user_vrp_string()]}", doesn't seem to exist.  
+If you manually typed that address into the browser, then it is either 
 outdated or you misspelled it.  If you got this error while clicking 
 on one of the links on this website, then the problem is likely 
 on this end.  In the latter case...</P>
 
 @{[$self->_get_amendment_message()]}
 __endquote
+
 		return( 1 );
 	}
 	
 	my $wpm_mod_name = $vrp_handler->{$HKEY_WPM_MODULE};
-	my $wpm_sub_dir = $vrp_handler->{$HKEY_WPM_SUBDIR};
-	my $wpm_prefs = $vrp_handler->{$HKEY_WPM_PREFS};
-	
-	$globals->inc_vrp_level();  # our handler ignores our page id
 
-	my $root_dir = $self->{$KEY_PAGE_ROOT_DIR};
-	my $sys_path_delim = $globals->system_path_delimiter();
-	my $wpm_work_dir = $wpm_sub_dir ? 
-		"$root_dir$sys_path_delim$wpm_sub_dir" : $root_dir;
+	$globals->inc_user_vrp_level();
+	$globals->move_current_vrp( $page_id );
+	$globals->move_current_srp( $vrp_handler->{$HKEY_WPM_SUBDIR} );
+	$globals->move_site_prefs( $vrp_handler->{$HKEY_WPM_PREFS} );
 
 	eval {
 		# "require $wpm_mod_name;" yields can't find module in @INC error
 		eval "require $wpm_mod_name;"; if( $@ ) { die $@; }
 
-		my $wpm = $wpm_mod_name->new( $wpm_work_dir, $wpm_prefs );
+		unless( $wpm_mod_name->isa( 'CGI::WPM::Base' ) ) {
+			die "Error: $wpm_mod_name isn't a subclass of ".
+				"CGI::WPM::Base, so I don't know how to use it\n";
+		}
+
+		my $wpm = $wpm_mod_name->new( $globals );
 
 		$wpm->dispatch_by_user();
 
 		$webpage = $wpm->get_page_content();
+
 		unless( ref( $webpage ) eq 'CGI::WPM::Content' ) {
 			die "Error: $wpm_mod_name didn't return a valid ".
-				"CGI::WPM::Content object\n";
+				"CGI::WPM::Content object so I can't use it\n";
 		}
-		
-		$self->{$KEY_IS_ERROR} = $wpm->is_error();
-		$self->{$KEY_PAGE_CONTENT} = $webpage;
 	};
 
+	$globals->restore_site_prefs();
+	$globals->restore_last_srp();
+	$globals->restore_last_vrp();
+	$globals->dec_user_vrp_level();
+
 	if( $@ ) {
-		$webpage->title( "Error Getting Page" );
+		$globals->add_error( "can't use module '$wpm_mod_name': $@\n" );
+	
+		$webpage = CGI::WPM::Content->new();
+
+		$webpage->title( 'Error Getting Page' );
 
 		$webpage->body_content( <<__endquote );
 <H2 ALIGN="center">@{[$webpage->title()]}</H2>
@@ -178,6 +182,8 @@ generate the page content, named "$wpm_mod_name".</P>
 <P>$@</P>
 __endquote
 	}
+
+	$self->{$KEY_PAGE_CONTENT} = $webpage;
 }
 
 ######################################################################
@@ -196,10 +202,8 @@ sub attach_page_menu {
 
 sub make_menu_items_html {
 	my $self = shift( @_ );
-	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
-	
-	my $t_vrp_id = $globals->site_pref( $GKEY_T_VRP_ID );
+	my $globals = $self->{$KEY_SITE_GLOBALS};	
+	my $rh_prefs = $globals->site_prefs();
 	my $ra_menu_items = $rh_prefs->{$PKEY_MENU_ITEMS};
 	my @menu_html = ();
 	
@@ -210,20 +214,22 @@ sub make_menu_items_html {
 			next;                   
 		}
 
-		if( $rh_curr_page->{$MKEY_IS_ACTIVE} ) {
-			push( @menu_html, "<A HREF=\"".
-				"$t_vrp_id=$rh_curr_page->{$MKEY_MENU_PATH}".
-				"\">$rh_curr_page->{$MKEY_MENU_NAME}</A>" );
+		unless( $rh_curr_page->{$MKEY_IS_ACTIVE} ) {
+			push( @menu_html, "$rh_curr_page->{$MKEY_MENU_NAME}" );
 			next;
 		}
 		
-		push( @menu_html, "$rh_curr_page->{$MKEY_MENU_NAME}" );
+		my $url = $globals->persistant_vrp_url( 
+			$rh_curr_page->{$MKEY_MENU_PATH} );
+		push( @menu_html, "<A HREF=\"$url\"".
+			">$rh_curr_page->{$MKEY_MENU_NAME}</A>" );
 	}
 	
 	return( @menu_html );
 }
 
 ######################################################################
+# This method currently isn't called by anything, but may be later.
 
 sub make_page_menu_vert {
 	my $self = shift( @_ );
@@ -241,6 +247,7 @@ sub make_page_menu_vert {
 }
 
 ######################################################################
+# This method currently isn't called by anything, but may be later.
 
 sub make_page_menu_horiz {
 	my $self = shift( @_ );
@@ -257,16 +264,15 @@ sub make_page_menu_horiz {
 
 sub make_page_menu_table {
 	my $self = shift( @_ );
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
+	my $rh_prefs = $self->{$KEY_SITE_GLOBALS}->site_prefs();
 	my @menu_items = $self->make_menu_items_html();
 	
-	use integer;
 	my $length = scalar( @menu_items );
 	my $max_cols = $rh_prefs->{$PKEY_MENU_COLS};
 	$max_cols <= 1 and $max_cols = 1;
-	my $max_rows = $length / $max_cols + ($length % $max_cols ? 1 : 0);
-	no integer;
-	
+	my $max_rows = 
+		int( $length / $max_cols ) + ($length % $max_cols ? 1 : 0);
+
 	my $colwid = $rh_prefs->{$PKEY_MENU_COLWID};
 	$colwid and $colwid = " WIDTH=\"$colwid\"";
 	

@@ -21,7 +21,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION);
-$VERSION = '0.1b';
+$VERSION = '0.2';
 
 ######################################################################
 
@@ -51,20 +51,20 @@ use CGI::WPM::Globals;
 # Names of properties for objects of this class are declared here:
 my $KEY_SITE_GLOBALS = 'site_globals';  # hold global site values
 my $KEY_PAGE_CONTENT = 'page_content';  # hold return values
-my $KEY_PAGE_ROOT_DIR = 'page_root_dir';  # root dir of support files
-my $KEY_PAGE_PREFS   = 'page_prefs';    # hold our own settings
-my $KEY_IS_ERROR   = 'is_error';    # holds error string, if any
 
 # Keys for items in site global preferences:
-my $GKEY_AMEND_MSG = 'amend_msg';  # personalized html appears on error page
-my $GKEY_T_MAILME = 't_mailme';  # token to replace with mailme url
+my $PKEY_AMEND_MSG = 'amend_msg';  # personalized html appears on error page
 
 # Keys for items in site page preferences:
-my $PKEY_BODY_ATTR    = 'body_attr';  # params for page's <BODY> tag
-my $PKEY_PAGE_HEADER  = 'page_header'; # content goes above our subclass's
-my $PKEY_PAGE_FOOTER  = 'page_footer'; # content goes below our subclass's
-
-# Constant values used in this class go here:
+my $PKEY_PAGE_HEADER = 'page_header'; # content goes above our subclass's
+my $PKEY_PAGE_FOOTER = 'page_footer'; # content goes below our subclass's
+my $PKEY_PAGE_TITLE = 'page_title';  # title for this document
+my $PKEY_PAGE_AUTHOR = 'page_author';  # author for this document
+my $PKEY_PAGE_META = 'page_meta';  # meta tags for this document
+my $PKEY_PAGE_CSS_SRC = 'page_css_src';  # stylesheet urls to link in
+my $PKEY_PAGE_CSS_CODE = 'page_css_code';  # css code to embed in head
+my $PKEY_PAGE_BODY_ATTR = 'page_body_attr';  # params to put in <BODY>
+my $PKEY_PAGE_REPLACE = 'page_replace';  # replacements to perform
 
 ######################################################################
 
@@ -79,16 +79,19 @@ sub new {
 ######################################################################
 
 sub initialize {
-	my $self = shift( @_ );
-	%{$self} = ();
-	$self->{$KEY_SITE_GLOBALS} = CGI::WPM::Globals->new();
-	$self->{$KEY_PAGE_CONTENT} = CGI::WPM::Content->new();
-	$self->{$KEY_PAGE_ROOT_DIR} = shift( @_ );
-	$self->{$KEY_PAGE_PREFS} = $self->page_prefs( shift( @_ ) );
+	my ($self, $globals) = @_;
+
+	ref($globals) eq 'CGI::WPM::Globals' or 
+		die "initializer is not a valid CGI::WPM::Globals object";
+
+	%{$self} = (
+		$KEY_SITE_GLOBALS => $globals,
+	);
+
 	$self->_initialize( @_ );
 }
 
-# subclass should have their own of these
+# subclass should have their own of these, if needed
 sub _initialize {
 }
 
@@ -96,14 +99,17 @@ sub _initialize {
 
 sub dispatch_by_user {
 	my $self = shift( @_ );
-	$self->{$KEY_IS_ERROR} and return( 0 );
+	if( $self->{$KEY_SITE_GLOBALS}->get_error() ) {  # prefs not open
+		$self->_set_to_init_error_page();
+		return( 0 );
+	}
 	return( $self->_dispatch_by_user( @_ ) );
 }
 
 # subclass should have their own of these
 sub _dispatch_by_user {
 	my $self = shift( @_ );
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
+	my $webpage = CGI::WPM::Content->new();
 
 	$webpage->title( 'Web Page For Users' );
 
@@ -119,20 +125,25 @@ or that subclass hasn't declared the _dispatch_by_user() method,
 which is required to generate the web pages that normal visitors 
 would see.</P>
 __endquote
+
+	$self->{$KEY_PAGE_CONTENT} = $webpage;
 }
 
 ######################################################################
 
 sub dispatch_by_admin {
 	my $self = shift( @_ );
-	$self->{$KEY_IS_ERROR} and return( 0 );
+	if( $self->{$KEY_SITE_GLOBALS}->get_error() ) {  # prefs not open
+		$self->_set_to_init_error_page();
+		return( 0 );
+	}
 	return( $self->_dispatch_by_admin( @_ ) );
 }
 
-# subclass should have their own of these
+# subclass should have their own of these, if needed
 sub _dispatch_by_admin {
 	my $self = shift( @_ );
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
+	my $webpage = CGI::WPM::Content->new();
 
 	$webpage->title( 'Web Page For Administrators' );
 
@@ -148,49 +159,50 @@ or that subclass hasn't declared the _dispatch_by_admin() method,
 which is required to generate the web pages that site administrators 
 would use to administrate site content using their web browsers.</P>
 __endquote
-}
 
-######################################################################
-
-sub page_pref {
-	my $self = shift( @_ );
-	my $key = shift( @_ );
-	if( defined( my $new_value = shift( @_ ) ) ) {
-		$self->{$KEY_PAGE_PREFS}->{$key} = $new_value;
-	}
-	return( $self->{$KEY_PAGE_PREFS}->{$key} );
-}
-
-######################################################################
-
-sub page_prefs {
-	my $self = shift( @_ );
-	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $new_value = shift( @_ );
-	if( ref( $new_value ) eq 'HASH' ) {
-		$self->{$KEY_PAGE_PREFS} = {%{$new_value}};
-	} elsif( defined( $new_value ) ) {
-		my $root = $self->{$KEY_PAGE_ROOT_DIR};
-		my $delim = $globals->system_path_delimiter();
-		my $filepath = "$root$delim$new_value";
-		my $result = $globals->get_hash_from_file( $filepath );
-		$self->{$KEY_PAGE_PREFS} = 
-			(ref($result) eq 'HASH') ? $result : {};
-		$result or $self->_set_to_init_error_page( $filepath );
-	}
-	return( $self->{$KEY_PAGE_PREFS} );  # returns ref
+	$self->{$KEY_PAGE_CONTENT} = $webpage;
 }
 
 ######################################################################
 
 sub get_page_content {   # should be called after "dispatch" methods
 	my $self = shift( @_ );
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
-	my $rh_prefs = $self->{$KEY_PAGE_PREFS};
-	$webpage->body_attributes( $rh_prefs->{$PKEY_BODY_ATTR} );
+	my $webpage = $self->{$KEY_PAGE_CONTENT} ||= CGI::WPM::Content->new();
+	my $rh_prefs = $self->{$KEY_SITE_GLOBALS}->site_prefs();
+		# note that we don't see parent prefs here, only current level
+
 	$webpage->body_prepend( $rh_prefs->{$PKEY_PAGE_HEADER} );
 	$webpage->body_append( $rh_prefs->{$PKEY_PAGE_FOOTER} );
+
+	$webpage->title() or $webpage->title( $rh_prefs->{$PKEY_PAGE_TITLE} );
+	$webpage->author() or $webpage->author( $rh_prefs->{$PKEY_PAGE_AUTHOR} );
+	
+	if( ref( my $rh_meta = $rh_prefs->{$PKEY_PAGE_META} ) eq 'HASH' ) {
+		@{$webpage->meta()}{keys %{$rh_meta}} = values %{$rh_meta};
+	}	
+
+	if( defined( my $css_urls_pref = $rh_prefs->{$PKEY_PAGE_CSS_SRC} ) ) {
+		push( @{$webpage->style_sources()}, 
+			ref($css_urls_pref) eq 'ARRAY' ? @{$css_urls_pref} : () );
+	}
+	if( defined( my $css_code_pref = $rh_prefs->{$PKEY_PAGE_CSS_CODE} ) ) {
+		push( @{$webpage->style_code()}, 
+			ref($css_code_pref) eq 'ARRAY' ? @{$css_code_pref} : () );
+	}
+
+	if( ref(my $rh_body = $rh_prefs->{$PKEY_PAGE_BODY_ATTR}) eq 'HASH' ) {
+		@{$webpage->body_attributes()}{keys %{$rh_body}} = 
+			values %{$rh_body};
+	}	
+
+	$webpage->add_later_replace( $rh_prefs->{$PKEY_PAGE_REPLACE} );
+
+	$self->_get_page_content();
 	return( $webpage );  # returns ref to original
+}
+
+# subclass should have their own of these, if needed
+sub _get_page_content {
 }
 
 ######################################################################
@@ -201,18 +213,12 @@ sub get_page_string {   # should be called after "dispatch" methods
 }
 
 ######################################################################
-
-sub is_error {
-	my $self = shift( @_ );
-	return( $self->{$KEY_IS_ERROR} );
-}
-
-######################################################################
+# This is meant to be called after the global "is error" is set
 
 sub _set_to_init_error_page {
-	my $self = shift( @_ );
-	$self->_make_filesystem_error( shift( @_ ), "execute" );
-	my $webpage = $self->{$KEY_PAGE_CONTENT};
+	my $self = @_;
+	my $globals = $self->{$KEY_SITE_GLOBALS};
+	my $webpage = CGI::WPM::Content->new();
 
 	$webpage->title( 'Error Initializing Page Maker' );
 
@@ -220,13 +226,15 @@ sub _set_to_init_error_page {
 <H2 ALIGN="center">@{[$webpage->title()]}</H2>
 
 <P>I'm sorry, but an error has occurred while trying to initialize 
-a required program module, "@{[ref( $self )]}".  The file that 
-contains its preferences couldn't be opened.</P>
+a required program module, "@{[ref($self)]}".  The file that 
+contains its preferences couldn't be opened.</P>  
 
 @{[$self->_get_amendment_message()]}
 
-<P>Details: $self->{$KEY_IS_ERROR}</P>
+<P>Details: @{[$globals->get_error()]}</P>
 __endquote
+
+	$self->{$KEY_PAGE_CONTENT} = $webpage;
 }
 
 ######################################################################
@@ -234,32 +242,14 @@ __endquote
 sub _get_amendment_message {
 	my $self = shift( @_ );
 	my $globals = $self->{$KEY_SITE_GLOBALS};
-	my $ams = $globals->site_pref( $GKEY_AMEND_MSG ) || <<__endquote;
-<P>This should be temporary, the result of a server glitch
+	return( $globals->site_pref( $PKEY_AMEND_MSG ) || <<__endquote );
+<P>This should be temporary, the result of a transient server problem
 or a site update being performed at the moment.  Click 
-<A HREF="@{[$globals->self_url()]}">here</A> to automatically try again.  
+@{[$globals->self_html('here')]} to automatically try again.  
 If the problem persists, please try again later, or send an
-<A HREF="@{[$globals->site_pref( $GKEY_T_MAILME )]}">e-mail</A>
+@{[$globals->site_owner_email_html('e-mail')]}
 message about the problem, so it can be fixed.</P>
 __endquote
-	return( $ams );
-}
-
-######################################################################
-
-sub _prepend_path {
-	my ($self, $filename) = @_;
-	my $dir = $self->{$KEY_PAGE_ROOT_DIR};
-	my $delim = $self->{$KEY_SITE_GLOBALS}->system_path_delimiter();
-	return( "$dir$delim$filename" );
-}
-
-######################################################################
-
-sub _make_filesystem_error {
-	my ($self, $filename, $unique_part) = @_;
-	return( $self->{$KEY_IS_ERROR} = 
-		"can't $unique_part file '$filename': $!" );
 }
 
 ######################################################################

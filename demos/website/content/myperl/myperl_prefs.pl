@@ -60,7 +60,7 @@ my $rh_preferences = {
 				title => 'CGI::EventCountFile',
 				author => 'Darren Duncan',
 				created => '',
-				updated => '',
+				updated => 'version 1.01 on 2000 August 7',
 				filename => 'EventCountFile.pm',
 			},
 		},
@@ -94,14 +94,14 @@ my $rh_preferences = {
 				filename => 'Globals.pm',
 			},
 		},
-		main => {
+		usage => {
 			wpm_module => 'CGI::WPM::SegTextDoc',
 			wpm_prefs => {
-				title => 'CGI::WPM::Main',
+				title => 'CGI::WPM::Usage',
 				author => 'Darren Duncan',
 				created => '',
 				updated => '',
-				filename => 'Main.pm',
+				filename => 'Usage.pm',
 			},
 		},
 		multipage => {
@@ -114,6 +114,16 @@ my $rh_preferences = {
 				filename => 'MultiPage.pm',
 			},
 		},
+		redirect => {
+			wpm_module => 'CGI::WPM::SegTextDoc',
+			wpm_prefs => {
+				title => 'CGI::WPM::Redirect',
+				author => 'Darren Duncan',
+				created => '',
+				updated => '',
+				filename => 'Redirect.pm',
+			},
+		},
 		static => {
 			wpm_module => 'CGI::WPM::SegTextDoc',
 			wpm_prefs => {
@@ -122,6 +132,16 @@ my $rh_preferences = {
 				created => '',
 				updated => '',
 				filename => 'Static.pm',
+			},
+		},
+		segtextdoc => {
+			wpm_module => 'CGI::WPM::SegTextDoc',
+			wpm_prefs => {
+				title => 'CGI::WPM::SegTextDoc',
+				author => 'Darren Duncan',
+				created => '',
+				updated => '',
+				filename => 'SegTextDoc.pm',
 			},
 		},
 		mailform => {
@@ -142,16 +162,6 @@ my $rh_preferences = {
 				created => '',
 				updated => '',
 				filename => 'GuestBook.pm',
-			},
-		},
-		segtextdoc => {
-			wpm_module => 'CGI::WPM::SegTextDoc',
-			wpm_prefs => {
-				title => 'CGI::WPM::SegTextDoc',
-				author => 'Darren Duncan',
-				created => '',
-				updated => '',
-				filename => 'SegTextDoc.pm',
 			},
 		},
 	},

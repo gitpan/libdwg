@@ -1,20 +1,25 @@
-libdwg-1.0:
-	demo:
-		content:
-			content_prefs.pl
-			frontdoor.html
-			guestbook_messages.txt
-			guestbook_questions.txt
-			links.html
-			myperl:
-				myperl.html
-				myperl_prefs.pl
-			mysites.html
-			resume.html
-		default.pl
-		site_prefs.pl
-		usage:
-		usage_debug:
+libdwg-1.1:
+	ChangeLog
+	demos:
+		redirector:
+			default.pl
+			usage:
+			usage_debug:
+		website:
+			content:
+				content_prefs.pl
+				frontdoor.html
+				guestbook_messages.txt
+				guestbook_questions.txt
+				links.html
+				myperl:
+					myperl.html
+					myperl_prefs.pl
+				mysites.html
+				resume.html
+			default.pl
+			usage:
+			usage_debug:
 	lib:
 		CGI:
 			EventCountFile.pm
@@ -26,10 +31,11 @@ libdwg-1.0:
 				Globals.pm
 				GuestBook.pm
 				MailForm.pm
-				Main.pm
 				MultiPage.pm
+				Redirect.pm
 				SegTextDoc.pm
 				Static.pm
+				Usage.pm
 		Class:
 			ParamParser.pm
 		HTML:
