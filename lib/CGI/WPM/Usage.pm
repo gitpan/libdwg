@@ -18,7 +18,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.2';
+$VERSION = '0.21';
 
 ######################################################################
 
@@ -62,11 +62,13 @@ my $PKEY_USG_PREFS  = 'usg_prefs';  # prefs hash/fn we give to usg mod
 
 # Keys for items in $PKEY_USG_PREFS preference:
 
+my $UKEY_ENV_MISC   = 'env_misc'; # name misc env variables to watch
 my $UKEY_SITE_URLS = 'site_urls'; # list urls site is, no qs
 	# This is useful, for example, to treat 'www' or prefixless versions 
 	# of this site's url as being one and the same.  Include 'http://'.
 	# Don't worry about case, as urls are automatically lowercased.
-my $UKEY_ENV_MISC   = 'env_misc'; # name misc env variables to watch
+my $UKEY_SEUL_SEKW  = 'seul_sekw'; # search engines and keyword param names
+my $UKEY_REF_JUNK   = 'ref_junk'; # if ref url matches these, filter junk
 
 # These are names of files we store usage data in.
 my $UKEY_FN_DCM      = 'fn_dcm'; # filename for "date counts mailed" record
@@ -104,40 +106,29 @@ my $UKEY_T_REF_JUNK = 't_ref_junk'; # someone read their e-mail/news in wb
 # This hash stores domain parts for common search engines in the keys, 
 # and its values are names of query params that hold the keywords.
 # They are all lowercased here for simplicity.  It's not complete, but I 
-# learned these engines because they linked to my web site.
-my %SEARCH_ENGINE_TERMS = (  # match keys against domains proper only
-	altavista => 'q',
-	aol => 'query',
-	'cnet.com' => 'qt',
-	'dmoz.org' => 'search',
-	excite => 'search',
-	'google.com' => 'q',
-	'hotbot.lycos.com' => 'mt',
-	icq => 'query',
-	'icqit.com' => 'query',
-	'iwon.com' => 'searchfor',
-	'l2g.com' => 'search',
-	looksmart => 'key',
-	msn => ['q','mt'],
-	netscape => 'search',
-	'search.com' => 'q',
-	'search.dogpile.com' => 'q',
-	'simplesearch.com' => 'search',
-	snap => 'keyword',
-	'webcrawler.com' => 'searchtext',
-	'websearch.cs.com' => 'sterm',
-	yahoo => 'p',
+# learned these engines because they linked to my web sites.
+my %DEF_SEARCH_ENGINE_TERMS = (  # match keys against domains proper only
+	altavista => 'q',     # Altavista
+	aol => 'query',       # America Online
+	'cs.com' => 'sterm',  # CompuServe
+	dmoz => 'search',     # Mozilla Open Directory
+	dogpile => 'q',       # DogPile
+	google => 'q',        # Google
+	intelliseek => 'queryterm', # "Infrastructure For Intelligent Portals"
+	iwon => 'searchfor',  # I Won
+	looksmart => 'key',   # LookSmart
+	mamma => 'query',     # "Mother of Search Engines"
+	msn => ['q','mt'],    # Microsoft
+	netscape => 'search', # Netscape
+	'search.com' => 'q',  # CNET
+	snap => 'keyword',    # Microsoft
+	yahoo => 'p',         # Yahoo
 );
 
 # if referring url contains these anywhere, it goes in ref junk
-my @JUNK = qw(
+# start with anything not beginning with "http://"
+my @DEF_JUNK = qw(
 	^(?!http://)
-	deja.com
-	hotmail 
-	egroups 
-	mail.chek.com 
-	mail.yahoo.com/ym/showletter
-	/cgi-bin/linkrd
 );
 
 ######################################################################
@@ -253,12 +244,9 @@ sub set_default_usage_prefs {
 	my $usg_prefs = $globals->site_pref( $PKEY_USG_PREFS );
 
 	$usg_prefs->{$UKEY_ENV_MISC} ||= [qw(
-		DOCUMENT_ROOT GATEWAY_INTERFACE
-		HTTP_ACCEPT_CHARSET HTTP_ACCEPT_ENCODING
-		HTTP_ACCEPT_LANGUAGE HTTP_CONNECTION HTTP_HOST
-		REQUEST_METHOD 
-		SCRIPT_FILENAME SCRIPT_NAME
-		SERVER_ADMIN SERVER_NAME SERVER_PORT SERVER_PROTOCOL SERVER_SOFTWARE
+		DOCUMENT_ROOT GATEWAY_INTERFACE HTTP_CONNECTION HTTP_HOST
+		REQUEST_METHOD SCRIPT_FILENAME SCRIPT_NAME SERVER_ADMIN 
+		SERVER_NAME SERVER_PORT SERVER_PROTOCOL SERVER_SOFTWARE
 	)];
 	ref( $usg_prefs->{$UKEY_ENV_MISC} ) eq 'ARRAY' or 
 		$usg_prefs->{$UKEY_ENV_MISC} = [$usg_prefs->{$UKEY_ENV_MISC}];
@@ -268,6 +256,18 @@ sub set_default_usage_prefs {
 		$usg_prefs->{$UKEY_SITE_URLS} = [$usg_prefs->{$UKEY_SITE_URLS}];
 	unshift( @{$usg_prefs->{$UKEY_SITE_URLS}}, $globals->base_url() );
 
+	$usg_prefs->{$UKEY_SEUL_SEKW} = {
+		%DEF_SEARCH_ENGINE_TERMS,
+		ref( $usg_prefs->{$UKEY_SEUL_SEKW} ) eq 'HASH' ? 
+			%{$usg_prefs->{$UKEY_SEUL_SEKW}} : (),
+	};
+	
+	$usg_prefs->{$UKEY_REF_JUNK} = [
+		@DEF_JUNK,
+		ref( $usg_prefs->{$UKEY_REF_JUNK} ) eq 'ARRAY' ? 
+			@{$usg_prefs->{$UKEY_REF_JUNK}} : (),
+	];
+	
 	$usg_prefs->{$UKEY_FN_DCM} ||= 'date_counts_mailed.txt';
 	$usg_prefs->{$UKEY_FN_ENV_MISC} ||= 'env.txt';
 	$usg_prefs->{$UKEY_FN_SITE_VRP} ||= 'site_vrp.txt';
@@ -412,7 +412,7 @@ sub update_site_usage_counts {
 		}
 
 		# else check if visitor came from checking an e-mail online
-		foreach my $ident (@JUNK) {
+		foreach my $ident (@{$usg_prefs->{$UKEY_REF_JUNK}}) {
 			if( $ref_filename =~ m|$ident| ) {
 				push( @ref_urls, $usg_prefs->{$UKEY_T_REF_JUNK} );
 				push( @ref_seul, $usg_prefs->{$UKEY_T_REF_JUNK} );
@@ -423,16 +423,21 @@ sub update_site_usage_counts {
 		}
 		
 		# else check if the referring domain is a search engine
-		foreach my $dom_frag (keys %SEARCH_ENGINE_TERMS) {
-			if( $domain =~ m|$dom_frag| ) {
+		foreach my $dom_frag (keys %{$usg_prefs->{$UKEY_SEUL_SEKW}}) {
+			if( ".$domain." =~ m|[/\.]$dom_frag\.| ) {
 				my $se_query = CGI::HashOfArrays->new( 1, $query );
 				my @se_keywords;
 				
-				my $kwpn = $SEARCH_ENGINE_TERMS{$dom_frag};
+				my $kwpn = $usg_prefs->{$UKEY_SEUL_SEKW}->{$dom_frag};
 				my @kwpn = ref($kwpn) eq 'ARRAY' ? @{$kwpn} : $kwpn;
 				foreach my $query_param (@kwpn) {
 					push( @se_keywords, split( /\s+/, 
 						$se_query->fetch_value( $query_param ) ) );
+				}
+
+				foreach my $kw (@se_keywords) {
+					$kw =~ s/^[^a-zA-Z0-9]+//;  # remove framing junk
+					$kw =~ s/[^a-zA-Z0-9]+$//;
 				}
 
 				# save both the file name and the search words used

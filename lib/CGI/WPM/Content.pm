@@ -19,7 +19,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION);
-$VERSION = '0.2';
+$VERSION = '0.2001';
 
 ######################################################################
 
@@ -31,18 +31,17 @@ $VERSION = '0.2';
 
 =head2 Standard Modules
 
-	I<none>
+	HTTP::Headers 1.36 (earlier versions may work, but not tested)
 
 =head2 Nonstandard Modules
 
-	HTTP::Headers 1.37
 	HTML::TagMaker
 
 =cut
 
 ######################################################################
 
-use HTTP::Headers 1.37;
+use HTTP::Headers;
 
 ######################################################################
 

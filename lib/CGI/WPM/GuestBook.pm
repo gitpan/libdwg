@@ -18,7 +18,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.2';
+$VERSION = '0.2001';
 
 ######################################################################
 
@@ -38,7 +38,7 @@ $VERSION = '0.2';
 	CGI::WPM::Content
 	CGI::WPM::Globals
 	HTML::FormMaker
-	CGI::HashOfArrays
+	CGI::HashOfArrays 1.01
 	CGI::SequentialFile
 
 =cut
@@ -97,7 +97,8 @@ sub _dispatch_by_user {
 			last SWITCH;
 		}
 
-		$form->user_input( $globals->user_input() );
+		$form->user_input( $globals->user_input() 
+			)->trim_bounding_whitespace();  # user_input() returns ref
 
 		if( $form->new_form() ) {  # if we're called first time
 			$self->new_message( $form );

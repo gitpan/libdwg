@@ -20,7 +20,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION @ISA);
-$VERSION = '0.2';
+$VERSION = '0.2001';
 
 ######################################################################
 
@@ -32,12 +32,11 @@ $VERSION = '0.2';
 
 =head2 Standard Modules
 
-	I<none>
+	Net::SMTP 2.15  (used only if we send e-mails; earlier v may work)
 
 =head2 Nonstandard Modules
 
 	CGI::HashOfArrays
-	Net::SMTP 2.15  # only if we send e-mails
 
 =cut
 
@@ -223,7 +222,7 @@ sub is_oversize_post { $_[0]->{$KEY_INITIAL_UI}->{$IKEY_OVERSIZE} }
 ######################################################################
 
 sub request_method { $ENV{'REQUEST_METHOD'} || 'GET' }
-sub content_length { $ENV{'CONTENT_LENGTH'} || '0' }
+sub content_length { $ENV{'CONTENT_LENGTH'} + 0 }
 
 sub server_name { $ENV{'SERVER_NAME'} || 'localhost' }
 sub virtual_host { $ENV{'HTTP_HOST'} || $_[0]->server_name() }

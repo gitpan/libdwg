@@ -1,3 +1,41 @@
+2000-08-23   Darren Duncan <perl@DarrenDuncan.net>
+
+	* Release 1.11
+	
+	* Updated CGI::HashOfArrays to 1.01 from 1.0.  Added method
+trim_bounding_whitespace() for cleaning up user input from forms.
+	
+	* Updated CGI::WPM::MailForm and CGI::WPM::GuestBook to 0.2001 from 0.2. 
+User input now has its leading and trailing whitespace removed prior to anything
+else being done with it, so fields where users may have entered a space or return
+by mistake don't register as an error when the field requires content to contain
+visible characters.
+	
+	* Updated CGI::WPM::Usage to 0.21 from 0.2.  Changes mostly reflect how
+referring urls are tracked, in the following ways:
+		- search engine keywords cleaned; non-alphanums trimmed from ends
+		- search engine domain filtering now only matches complete domain
+segments (bounded by "." or "/" or edge of string); before, "lo" matched "hello".
+		- added usage pref "seul_sekw" (HASH ref) so that the caller can now add
+their own search engine domain fragments that they want filtered, and with each
+they would indicate the query param the se puts search keywords in.  The built-in
+list had less-popular members removed, as the caller can now provide these if
+they wish.  Both lists get combined.
+		- added usage pref "ref_junk" (ARRAY ref) so that the caller can now add
+their own url fragments that they want filtered to the junk file.  The built-in
+list now only filters urls that don't begin with "http://".  Both lists get
+combined.
+		- default misc env vars no longer includes HTTP_ACCEPT* or PATH.  The
+associated pref "env_vars" replaces the built-in list if provided.
+	
+	* Updated CGI::WPM::Content and CGI::WPM::Globals to 0.2001 from 0.2.  Now
+there are no specific versions of HTTP::Headers (1.37) or Net::SMTP (2.15)
+required in their code, since it is very possible that earlier versions from what
+I tested will work; however, the POD still indicates tested versions.  Also, the
+POD now assumes that both latter modules are part of the standard Perl install
+rather than non-standard; if your distribution doesn't, then you need to add
+them.
+	
 2000-08-12   Darren Duncan <perl@DarrenDuncan.net>
 
 	* Release 1.1001
@@ -20,10 +58,9 @@ backwards compatible with the "web site" data files for libdwg 1.0.  Only the
 "main program" (such as default.pl) and possibly a site preference file for each
 "web site" needed changing.
 
-	* All CGI::WPM::* modules updated to version 0.2, and CGI::WPM::Content had
-its number lowered from 1.0 so that the whole set had version number parity.
+	* All CGI::WPM::* modules updated to version 0.2 from 0.1, except for CGI::WPM::Content, which had its number lowered to 0.2 from 1.0 so that the whole set had version number parity.
 
-	* CGI::EventCountFile updated to version 1.01 because a new method,
+	* CGI::EventCountFile updated to version 1.01 from 1.0 because a new method,
 delete_all_keys(), was added.  Minor change to "synopsis" POD as well.
 
 	* Class::Singleton is no longer used because that needed to use a global
@@ -90,13 +127,13 @@ preference with the same name directly to a child will hide the inherited one,
 however, in the same manner that more locally scoped program variables with the
 same name hide more distantly scoped ones.
 
-	* New module CGI::WPM::Redirect has been added, so that now issuing explicit
-redirection headers for external-link-callbacks can be accomplished with the same
-versatility as issuing other content like static pages or forms.  Before,
-redirections were handled by CGI::WPM::Main, which acted under a specific
+* New module CGI::WPM::Redirect (v0.2) has been added, so that now issuing
+explicit redirection headers for external-link-callbacks can be accomplished with
+the same versatility as issuing other content like static pages or forms. 
+Before, redirections were handled by CGI::WPM::Main, which acted under a specific
 circumstance only (vrp="external").
 
-	* New module CGI::WPM::Usage has been added, which replaces functionality
+* New module CGI::WPM::Usage (v0.2) has been added, which replaces functionality
 originally done by CGI::WPM::Main after it called other WPM modules to make page
 content.  Now the same thing is accomplished by calling Usage and instructing it
 to call the content-making WPM modules itself (via its preferences).  As a result

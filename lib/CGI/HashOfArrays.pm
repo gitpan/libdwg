@@ -18,7 +18,7 @@ require 5.004;
 
 use strict;
 use vars qw($VERSION);
-$VERSION = '1.0';
+$VERSION = '1.01';
 
 ######################################################################
 
@@ -38,7 +38,7 @@ $VERSION = '1.0';
 
 =head1 SYNOPSIS
 
-	use CGI::HashOfArrays;
+	use CGI::HashOfArrays 1.01;
 
 	my $case_insensitive = 1;
 	my $complementry_set = 1;
@@ -53,6 +53,7 @@ $VERSION = '1.0';
 		read( STDIN, $query_string, $ENV{'CONTENT_LENGTH'} );
 	}
 	$params->from_url_encoded_string( $query_string );
+	$params->trim_bounding_whitespace();  # clean up user input
 
 	foreach my $key ($params->keys()) {
 		my @values = $params->fetch( $key );
@@ -621,6 +622,30 @@ sub delete_all {
 	my $rh_main_hash = $self->{$KEY_MAIN_HASH};
 	$self->{$KEY_MAIN_HASH} = {};
 	return( wantarray ? %{$rh_main_hash} : $rh_main_hash );
+}
+
+######################################################################
+
+=head2 trim_bounding_whitespace()
+
+This method cleans up all of this object's values by trimming any leading or
+trailing whitespace.  The keys are left alone.  This would normally be done when
+the object is representing user input from a form, including when they entered
+nothing but whitespace, and the program should act like they left the field
+empty.
+
+=cut
+
+######################################################################
+
+sub trim_bounding_whitespace {
+	my $self = shift( @_ );
+	foreach my $ra_values (values %{$self->{$KEY_MAIN_HASH}}) {
+		foreach my $value (@{$ra_values}) {
+			$value =~ s/^\s+//;
+			$value =~ s/\s+$//;
+		}
+	}
 }
 
 ######################################################################
