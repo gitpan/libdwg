@@ -3,54 +3,43 @@
 
 by Darren Duncan <perl@DarrenDuncan.net>
 
-This document is for historical reference only.  The last version of the "libdwg"
-distribution to contain substance was 1.11.  The 17 modules that would be part of
-libdwg 1.2 have been split up into 4 new distributions instead, because their new
-homes are much more appropriate.  
+This distribution is now dead.  The modules that were in it have evolved and been
+moved into other distributions where they fit better.  Some have new names.  Some
+have split into several modules, and some modules have been absorbed into others.
+ 
+The only reason that this file and its enclosing distribution exists is to blot
+out as much as possible the details of what this distribution was, due to the
+fact that listings are never deleted from search.cpan.org, but can only be
+covered up by newer versions.  If it is possible to delete distributions from the
+listings, then this document will no longer be necessary.
 
-Please see the following distributions, all under the authorname of "DUNCAND", to
-get the newest versions of the following modules:
+Please look to the following distributions for the modules you seek.  The details
+shown here are current as of 2001 March 14th.
 
-	- Class-ParamParser-1.0 now contains:
-		Class::ParamParser 1.0
-		
-	- EventCountFile-1.0 now contains:
-		CGI::EventCountFile 1.01
-		
-	- CGI-FormGenerator-0.9 now contains:
-		HTML::TagMaker 1.0
-		HTML::FormMaker 1.0
-		CGI::HashOfArrays 1.01
-		CGI::SequentialFile 1.0
-		CGI::WebUserInput 0.9
-		CGI::WebUserOutput 0.9
-		
-	- CGI-WebsiteGenerator-0.3 now contains all CGI::WPM::* only:
-		CGI::WPM::Globals 0.3
-		CGI::WPM::Base 0.3
-		CGI::WPM::Static 0.3
-		CGI::WPM::Redirect 0.3
-		CGI::WPM::MultiPage 0.3
-		CGI::WPM::MailForm 0.3
-		CGI::WPM::GuestBook 0.3
-		CGI::WPM::SegTextDoc 0.3
-		CGI::WPM::Usage 0.3
+Class-ParamParser-1.03 contains:
+	Class::ParamParser 1.03
 
-Please see the ChangeLog document for "libdwg" to find out what updates the above
-modules received between release 1.11 and 1.2 (implemented by above 4).
+HTML-EasyTags-1.0301 contains:
+	HTML::EasyTags 1.0301 <= was HTML::TagMaker
 
-Cross-distribution dependencies are as follows:
+MultiValuedHash-1.0501 contains:
+	Data::MultiValuedHash 1.05 <= was part of CGI::HashOfArrays
+	CGI::MultiValuedHash 1.0501 <= was part of CGI::HashOfArrays
 
-	Class-ParamParser is needed if you are using:
-		- HTML::*
-		- CGI::WebUserOutput to make an HTML page (headers only don't need it)
-		- CGI-WebsiteGenerator if any HTML pages are to be output
+HTML-FormTemplate contains:
+	HTML::FormTemplate 1.04 <= was HTML::FormMaker
 
-	EventCountFile is needed if you are using:
-		- CGI::WPM::Usage to track site usage
-	
-	CGI-FormGenerator is needed if you are using:
-		- CGI-WebsiteGenerator to make anything
-		
-	CGI-WebsiteGenerator is not used by any of the other distributions.
-	
+CGI-WebsiteGenerator-0.33 contains:
+	CGI::WPM::EventCountFile 1.04 <= was CGI::EventCountFile
+	CGI::WPM::SequentialFile 1.03 <= was CGI::SequentialFile
+	CGI::WPM::PageMaker 1.01 <= was CGI::WPM::Content
+	CGI::WPM::WebUserIO 0.93 <= was part of CGI::WPM::Globals
+	CGI::WPM::Globals 0.33 <= was part of CGI::WPM::Globals
+	CGI::WPM::Base 0.33
+	CGI::WPM::GuestBook 0.33
+	CGI::WPM::MailForm 0.33
+	CGI::WPM::MultiPage 0.33
+	CGI::WPM::Redirect 0.33
+	CGI::WPM::SegTextDoc 0.33
+	CGI::WPM::Static 0.33
+	CGI::WPM::Usage 0.33
