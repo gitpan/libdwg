@@ -1,45 +1,4 @@
-libdwg-1.1:
+libdwg-1.2:
 	ChangeLog
-	demos:
-		redirector:
-			default.pl
-			usage:
-			usage_debug:
-		website:
-			content:
-				content_prefs.pl
-				frontdoor.html
-				guestbook_messages.txt
-				guestbook_questions.txt
-				links.html
-				myperl:
-					myperl.html
-					myperl_prefs.pl
-				mysites.html
-				resume.html
-			default.pl
-			usage:
-			usage_debug:
-	lib:
-		CGI:
-			EventCountFile.pm
-			HashOfArrays.pm
-			SequentialFile.pm
-			WPM:
-				Base.pm
-				Content.pm
-				Globals.pm
-				GuestBook.pm
-				MailForm.pm
-				MultiPage.pm
-				Redirect.pm
-				SegTextDoc.pm
-				Static.pm
-				Usage.pm
-		Class:
-			ParamParser.pm
-		HTML:
-			FormMaker.pm
-			TagMaker.pm
 	MANIFEST
 	README

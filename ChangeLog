@@ -1,3 +1,80 @@
+2000-09-04   Darren Duncan <perl@DarrenDuncan.net>
+
+	* Release 1.2
+		
+	* Distribution "libdwg" is now retired.  Please use the 4 new distributions 
+	detailed below instead.  First, though, are outlined the updates that 
+	individual modules went through since 1.11 and before they ended up separated.
+	
+	* Fixed bug in CGI::WPM::Globals::add_filesystem_error() that caused a 
+	runtime exception when other error() methods were subsequently used.
+	
+	* Split off part of module CGI::WPM::Globals into a new module, 
+	CGI::WebUserInput, which has a version of 0.9.  The new module also gained 
+	more POD.
+	
+	* Renamed module CGI::WPM::Content to CGI::WebUserOutput and gave it a 
+	version of 0.9.
+	
+	* Added method send_user_output() to CGI::WebUserOutput.
+
+	* CGI::WPM::Globals now is at version 0.3 and inherits from both 
+	CGI::WebUserInput 0.9 and CGI::WebUserOutput 0.9.
+	
+	* All CGI::WPM::* modules now use Globals to do both what it and Content 
+	had used to do, eliminating the latter.
+	
+	* Changes to CGI::WPM::Base as follows:
+		- renamed method get_page_content() to finalize_page_content().  The new
+		method works the same except that it doesn't return anything.  The 
+		Globals object in the caller's hand should be queried instead.
+		- removed method get_page_content_string().
+	
+	* Changes to CGI::WPM::SegTextDoc as follows:
+		- document headers (title, author) are now only added when the doc 
+		segment actually opens; it used to also show with error messages
+
+	* Changes to CGI::WPM::MailForm and CGI::WPM::GuestBook as follows:
+		- both can now use either custom questions or a default question, 
+		"message"; before, MailForm was default-only, GB was custom-only.
+		- custom questions can be provided in one of 3 ways (prev #3 only):
+			- in a preference which is an array ref
+			- in a file of Perl code that when executed returns an array ref
+			- in a file that CGI::SequentialFile handles to return an array ref
+		- custom e-mail subject can now be used for both
+		- custom title and header can now be used for initial submission forms
+		- custom title and header is available when listing guestbook messages
+
+	* All CGI::WPM::* modules gained more POD which lists methods and preferences.
+
+	* All CGI::WPM::* modules are now up to version 0.3 from 0.2x.
+
+	* Split this distribution into 4 new ones:
+		- Class-ParamParser-1.0 now contains:
+			Class::ParamParser 1.0
+		- EventCountFile-1.0 now contains:
+			CGI::EventCountFile 1.01
+		- CGI-FormGenerator-0.9 now contains:
+			HTML::TagMaker 1.0
+			HTML::FormMaker 1.0
+			CGI::HashOfArrays 1.01
+			CGI::SequentialFile 1.0
+			CGI::WebUserInput 0.9
+			CGI::WebUserOutput 0.9
+		- CGI-WebsiteGenerator-0.3 now contains all CGI::WPM::* only:
+			CGI::WPM::Globals 0.3
+			CGI::WPM::Base 0.3
+			CGI::WPM::Static 0.3
+			CGI::WPM::Redirect 0.3
+			CGI::WPM::MultiPage 0.3
+			CGI::WPM::MailForm 0.3
+			CGI::WPM::GuestBook 0.3
+			CGI::WPM::SegTextDoc 0.3
+			CGI::WPM::Usage 0.3
+			
+	* This distribution now only contains its README and this ChangeLog, for 
+	historical reference.
+			
 2000-08-23   Darren Duncan <perl@DarrenDuncan.net>
 
 	* Release 1.11
