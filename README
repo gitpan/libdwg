@@ -1,0 +1,301 @@
+                     DYNAMIC WEBSITE GENERATOR
+----------------------------------------------------------------------
+
+by Darren Duncan <perl@DarrenDuncan.net>
+
+libdwg is a collection of Perl 5 modules that were developed originally to
+implement (generate/compile) an unlimited number of unrelated dynamic web-sites
+at once, but they can be used for various other purposes as well.  
+
+The intent here was to maximize code reuse such that each instance of a web site
+needs very little of its own Perl code to differentiate it from others.  As such,
+each "site" consists mostly of a set of hierarchically organized data files, such
+as the htmlized text for each page, settings/configuration files that say things
+like what questions are asked in forms such as guestbooks, and log files for the
+likes of guest books or usage count data.  Modules are designed such that their
+behaviour is customized by giving them different data or "preferences", rather
+than by changing the values of hardcoded constants.  Everything is designed with
+an extensible architecture so third parties can add features to it.  My ultimate
+goal is that website owners can update their sites using their web browsers over
+a user-friendly interface.
+
+To see living examples of these modules in use, check out my web sites at
+"http://www.DarrenDuncan.net" and "http://www.chronology.net".
+
+KEEPING UP TO DATE
+
+These modules are constantly under development.  You should be able to find the
+newest versions at my website, "http://www.DarrenDuncan.net", on the page called
+"Perl Libraries I Made" (name subject to change).  They can also be found on CPAN
+under the author name of "DUNCAND".  
+
+I am inclined to update the copies on my web site more often, but those
+intermediate versions are more likely to have been tested less, and the modules
+may be updated day by day without increasing the version numbers.  However, the
+copies on CPAN are guaranteed to have unique version numbers when the module has
+changed.
+
+REQUIREMENTS
+
+All of my modules require Perl 5.004 or newer, even though only some of them need
+it, in the interest of consistency.
+
+These third-party modules are required by some of mine.  If they aren't included
+in your Perl distribution then you will need to obtain them from CPAN.  The
+versions below were the newest as of April of 2000.
+
+Class::Singleton 1.03
+	- by Andy Wardley <abw@cre.canon.co.uk>
+	- in Class-Singleton-1.03.tar.gz
+
+HTTP::Headers 1.37
+	- by Gisle Aas <gisle@aas.no>
+	- in libwww-perl-5.48.tar.gz
+
+Net::SMTP 2.15
+	- by Graham Barr <gbarr@pobox.com>
+	- in libnet-1.0703.tar.gz
+
+Older versions of these modules may work as well, but I haven't tried using them
+so do it at your own frustration.
+
+INSTALLATION
+
+I haven't gotten around to doing makefiles, so you will have to install these the
+old fashioned way, by copying.  
+
+Any files that you find in "lib" can go in their corresponding locations in the
+"lib" folder that came with your Perl 5 distribution.  Or alternately, put them
+anywhere you want, but you will need to have that location added to your include
+path by your main program using something like this:
+
+	use lib '/users/me/www_files/lib';
+
+Any existing POD is embedded in the modules themselves, so you will have to look
+there to see it, or run a POD extractor on it yourself, or look at the copies on
+CPAN that would be dutifully extracted and turned to HTML.
+
+MODULE LIST
+
+Here is a quick list of all the modules in the distribution, and what each is
+for.  The fully documented ones appear first.
+
+Class::ParamParser 1.0b -- Perl module that provides complex parameter list
+parsing for subclass methods.
+
+HTML::TagMaker 1.0b -- HTML::TagMaker -- Perl module that can create any HTML
+tags, as well as groups of or just parts of them, and complete html headers or
+footers.
+
+HTML::FormMaker 1.0b -- Perl module that maintains a predefined html input form
+definition with which it can generate form html, complete with persistant and
+error-checked user input, as well as formatted reports of the user input in html
+or plain text.
+
+CGI::HashOfArrays 1.0b -- Perl module that implements a hash whose keys can have
+either single or multiple values, and which can process url-encoded data.
+
+CGI::SequentialFile 1.0b -- Perl module that interfaces to a common text file
+format which stores records as named and url-escaped key=value pairs.
+
+CGI::EventCountFile 1.0b -- Perl module that interfaces to a tab-delimited text
+file for storing date-bounded counts of occurances for multiple events, such as
+web page views.
+
+CGI::WPM::Content 1.0b -- Perl module that stores and assembles components of a
+new web page, including HTTP headers, and it is returned by all subclasses of
+CGI::WPM::Base.
+
+CGI::WPM::Base 0.1b -- Perl module that defines the API for subclasses, which are
+miniature applications called "web page makers", and provides them with a
+hierarchical environment that handles details for obtaining program settings,
+resolving file system or web site contexts, obtaining user input, and sending new
+web pages to the user.
+
+CGI::WPM::Globals 0.1b -- Perl module that is used by all subclasses of
+CGI::WPM::Base for managing global program settings, file system and web site
+hierarchy contexts, providing environment details, gathering and managing user
+input, and providing utilities like sending e-mail.
+
+CGI::WPM::Main 0.1b -- Perl module that implements a simple "main program" which
+will agnostically run any subclass of CGI::WPM::Base, print out its return value,
+initialize program globals, track site usage details, and e-mail backups of usage
+counts to the site owner.
+
+CGI::WPM::Static 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
+displays a static HTML page.
+
+CGI::WPM::MailForm 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
+implements a private e-mail form.
+
+CGI::WPM::GuestBook 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
+implements a complete guest book.
+
+CGI::WPM::SegTextDoc 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
+displays a static text page, which can be in multiple segments.
+
+CGI::WPM::MultiPage 0.1b -- Perl module that is a subclass of CGI::WPM::Base and
+resolves navigation for one level in the web site page hierarchy from a parent
+node to its children, encapsulates and returns its childrens' returned web page
+components, and can make a navigation bar to child pages.
+
+HOW TO USE THE MODULES
+
+First of all, it is always a good idea to skim through the POD for any module in
+order to learn how to use it.  Any modules at version 1.0 or later have complete
+POD, and any modules at version 0.x have incomplete POD.
+
+Now, at this time I don't have an exhaustive tutorial saying how to use these
+modules, but I have included a sample "web site" in the folder called "demo". 
+You should be able to install the folder anywhere on your web server, and only
+need to modify a couple files to make it operational; those files are the only
+ones at the root of the demo folder.  
+
+The file "default.pl" is the "main program" which calls everything else.  This
+file needs to correspond to a web url on your server in order for a web browser
+to see it, although it can be run from the command shell.  All of the other files
+can be outside the public html directory.  What I do is keep all of the site
+files together, and put only a link/alias/shortcut to default.pl in my public web
+directory.
+
+Example content of default.pl:
+
+#!/usr/bin/perl
+use strict;
+use lib '/path/to/non/distribution/perl/modules';     # optional
+use CGI::WPM::Main;         # this code is the real main program
+CGI::WPM::Main->main(
+	'/path/to/site/support/files',   # where the pieces of this site are
+	'/',                             # path delimiter for your OS
+	'site_prefs.pl'                  # file holding your site global settings
+);
+1;
+
+You need to modify your copy of "default.pl" such that the information above is
+correct for your server's layout and operating system.
+
+Next, you need to modify the file called "site_prefs.pl" such that any e-mail
+addresses there are your own.  While the site will operate without this change,
+any attempts to use the mail forms or guest books will e-mail your submission to
+the wrong person, john@sample.com.
+
+All else I can suggest to figure things out is examine the files in the "demo"
+folder side-by-side with exploring the generated web site in your browser, and
+see what affect changing certain things has.  The demo site makes use of all the
+distribution modules in some way or other, but a real site doesn't have to.
+
+FEATURES
+
+When all of the modules in this set are used together, these are some of the
+features that programs using them can have:
+
+* Fully compliant with the HTML 4.0 standard and Cascading Style Sheets.
+
+* Single or multiple pages in each site, which can be organized hierarchically. 
+At each hierarchy level, a naviagation bar can be automatically provided or left
+out.
+
+* Display static pages read from an ordinary HTML document; the source can be a
+complete HTML document or only that which would go between the 'body' tags.
+
+* Provide html forms for sending private e-mails to the site owner, with a
+visitor-defined option for the sender getting their own copy.  The user input is
+automatically error-checked for completeness and shows the visitor what they did
+wrong if not.  The mail is sent using SMTP directly, so it works on systems that
+don't have 'sendmail'.
+
+* Provide guest books with all the features of private mail forms and more. The
+number and field type of questions is unlimited, and the input validity checking
+is customizable.  Guest book entries are displayed with the sender's name and
+time of submission, but their e-mail address is hidden.
+
+* Display plain text documents with their formatting intact (using 'pre' tags)
+along with relevant details like title, author, version and dates created or
+modified.  Long documents can optionally be segmented and displayed as a series
+of parts, which can be navigated with an automatically provided navigation bar.
+
+* Automatically redirect visitors to an external url from an internal one.
+
+* Usage of the site can be counted, and for each usage event are the count of
+total occurances, count of today's occurances, date of first occurance, and date
+of last occurance.  Usage details that can be counted include: which site pages
+were viewed, which external urls we redirect visitors to, which external urls
+have a link to us (that were used), which internal site pages had links that were
+clicked on to go to other pages, which web browsers the visitors are using, where
+the visitors are from, and miscellaneous environment details like GET vs POST vs
+HEAD requests.  The details are counted independently of each other.  Usage
+information can be compiled and e-mailed to the owner once per day for
+backup/report purposes.
+
+* Search and replace of content at site visitation time so that repeating and/or
+complicated data in static source files can be substituted by other static or
+dynamic content which changes over time, such as a hyperlink to e-mail the owner
+(addresses change), or directory url holding graphics.
+
+* Generated sites are usable on all visitor computing platforms, no matter what
+web browsers they have, even if text-only.
+
+* The site can be seamlessly moved from one web or physical address or computer
+platform to another, and nothing will break. I have tested it on UNIX, Linux,
+Windows, Macintosh successfully. All platform-specific details are confined to a
+single site-settings file, which is quoted above.  Most site details are in other
+files, which are platform agnostic.  The site can be invoked from a command
+prompt for testing if desired.
+
+* The site can be invoked using an optional query parameter that will turn
+debugging on.  The site-program will then know that it is the owner viewing the
+site, and can do some things differently in accordance. Currently the only
+difference is that a separate set of usage logs are kept, so normal hit counters
+aren't racked up when testing something.
+
+* The site's support files can all be stored outside the 'public_html' directory,
+so attempts to view them directly will fail (no corresponding web url).  Only the
+main shell (or link to it) must be in the 'public_html'.
+
+* Hooks are provided so that future versions of this program will let the site
+owner edit the site's content using its own web forms.  That is, remote
+administration. Currently, the only way to edit a site's content is to use
+ftp/telnet to directly change the site support files. For security purposes,
+admin_mode can only be invoked by calling a separate module method, which would
+likely be in a separate shell/main program.
+
+* The progam modules are designed in an elegant and extensible format, so
+additional "plug-in" modules can be made to provide additonal functionality, such
+as a threaded discussion board, or database-access pages, without changing the
+other program code.  In the future, it should be easy to add features for content
+searching and reporting, internal site spidering (more efficient), and more.
+
+* The modules have extensive error checking and graceful exit routines built-in
+so that nothing the site visitor does should make the program crash (although the
+Perl interpreter itself or the web server is a different story).  If the program
+did crash, then the visitor would get a nondescript "server error" message
+without any idea why it happened.  Likewise, many checks are in place to account
+for problems introduced by the site programmer themselves, such as improperly
+made settings, nonexistant files, or non-compiling plug-in modules.  For better
+or worse, the program currently gives details on exactly what went wrong, so that
+the owner who is testing it has an easy time fixing it.
+
+SUPPORT
+
+Currently I don't have any support arranged with other people, lists, newsgroups,
+or otherwise.  You will need to ask me if you can't figure things out on your
+own.  Unfortunately, I am very busy and have little time to answer questions.  So
+please ask only if you have a genuine interest in the modules and are considering
+using them.  This policy should change later as I gain more free time.
+
+AUTHOR
+
+Copyright (c) 1999-2000, Darren R. Duncan. All rights reserved. These modules are
+free software; you can redistribute them and/or modify them under the same terms
+as Perl itself.  However, I do request that their copyright information remains
+attached to the files.  If you modify this module and redistribute a changed
+version then please attach a note listing the modifications.
+
+I am always interested in knowing how my work helps others, so if you put this
+module to use in any of your own code then please send me the URL.  Also, if you
+make modifications to the module because it doesn't work the way you need, please
+send me a copy so that I can roll desirable changes into the main release.
+
+Address comments, suggestions, and bug reports to B<perl@DarrenDuncan.net>.
+
+Share and Enjoy!
